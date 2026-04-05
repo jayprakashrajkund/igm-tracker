@@ -22,6 +22,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .today-lbl{color:#333;font-size:9px;letter-spacing:.5px;text-transform:uppercase;}
 #saving-bar{position:fixed;top:0;left:0;right:0;height:2px;z-index:999;background:linear-gradient(90deg,#f59e0b,#e07b00,#f59e0b);background-size:200% 100%;animation:slideBar 1s linear infinite;display:none;}
 @keyframes slideBar{0%{background-position:0%}100%{background-position:200%}}
+#sync-dot{position:fixed;top:6px;right:8px;z-index:1000;width:7px;height:7px;border-radius:50%;background:#22c55e;display:none;}
+#sync-dot.syncing{background:#f59e0b;display:block;}
+#sync-dot.ok{background:#22c55e;display:block;}
+#sync-dot.err{background:#ef4444;display:block;}
 #toast{position:fixed;top:74px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,.97);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 22px;border-radius:30px;font-size:13px;font-weight:600;z-index:500;white-space:nowrap;backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;transition:opacity .3s;}
 #toast.warn{background:rgba(245,158,11,.95);}
 #toast.err{background:rgba(239,68,68,.95);}
@@ -163,6 +167,7 @@ textarea{resize:none;line-height:1.6;}
 </head>
 <body>
 <div id="saving-bar"></div>
+<div id="sync-dot"></div>
 <div id="toast"></div>
 
 <!-- HEADER -->
@@ -304,25 +309,114 @@ textarea{resize:none;line-height:1.6;}
   </div>
 </div>
 
+<!-- Firebase v9 compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
+// ── FIREBASE CONFIG — paste your values here ──────────
+const firebaseConfig = {
+  apiKey:            "REPLACE_WITH_YOUR_API_KEY",
+  authDomain:        "REPLACE_WITH_YOUR_AUTH_DOMAIN",
+  projectId:         "REPLACE_WITH_YOUR_PROJECT_ID",
+  storageBucket:     "REPLACE_WITH_YOUR_STORAGE_BUCKET",
+  messagingSenderId: "REPLACE_WITH_YOUR_MESSAGING_SENDER_ID",
+  appId:             "REPLACE_WITH_YOUR_APP_ID"
+};
+
+// ── INIT ──────────────────────────────────────────────
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Enable offline persistence so app works without internet
+db.enablePersistence({synchronizeTabs: true}).catch(() => {});
+
 const EKEY='igm_e_v4', CKEY='igm_c_v4';
+const FS_ENTRIES  = 'igm_entries';
+const FS_CLIENTS  = 'igm_custom_clients';
+
 const BASE_CLIENTS=['3A Hillstone LLC','ACD Custom Granite','ALLISON CAMPANELLI','ANDREW KARPERIS','AW Eurostyle, Tinton Falls','Aboud Yosif','Albany Marble Inc','Alcamo Granite & Marble','Alex','All Home Remodelers LLC','Amanda Syracuse Tile & Marble','Ann Sideris','Anthony Rescigno','Art Deco Stone Works','Astella, ABC Custom Granite','BCG Custom Fabricators','BNJ Granite & Cabinets Van','Bella Italia','Ben Garfunkel','Bridgehampton Stone & Mosaic','CNY Granite & Marble','CR Stone Contracting','Cris','DANIEL','Danieal, Custom Granite Fabrication LLC','Dayna Ricco Cloidt','Denis Rivera','Denise Scheuring','Denny Depani','Diane Clarke','Didi','Eben Ezer Marble & Granite','Elite Design Granite','Eloy','Elvin','Empire State Stone','Emraha','Eren Beser','Erik','Erika','Erika Dominczak','Falco Marble & Granite NJ','Frank Brown','Frankie','George','George. Tri State Stones','Geovanny Granite & Marble LLC','Giuseppe Iraheta','Granite Tops.com NJ','Granite-Cabinet.com','Greene Marble & Granite','Hard Surface King','ILKEM Granite Countertops','IMG Stone Works Ibrahim','Ideal Fabrication','Innovate Stones INC','J&M Granite Designs','JENNA DECICCO','JV Stone Design Jack P Vivonetto','Jessica Tobar','Jit Renjen','Jose','Joseph E. Bellone','Joseph lacono','Joslyn','Juan Jesus Santiago','Juan M','Katherine H','Kathy','Kay, Granite Cabnites','Lenny','Lisa Vitulli','Liz','Louis','Louis A. Sala','Luxury Marble & Granite LLC','MAHESH PATEL','MARY DECENZO','Manny','Manny Central Stone Work','Manny Sethi','Manuel Perez','Marble & Granite LLC','Marble And Granite Inc','Marble Unlimited','Marcia Fuela','Marika','Maritza','Master Stone Transformation','Matthew Partsinevelos','Melissa','Mohawk Valley Granite LLC','NATURAL STONE KITCHEN & BATH','NESE KAPLAN','NY Tile Center','Nicholas Callegari','Nick','Oscar Quiroz','PETER DESANTIS','PMI International Stone Imports','Princeton Stone & Tile Inc','ROCCO MESITI','RS Marble','Richmond Granite','Rodney','Roma Tile & Marble','Rosen Italia Marble','Royal Marble & Granite','SPAULDING FABRICATORS INC.','SVITLANA PANASIK','Sabina IVO Cabinets Utica NY','Sal Conte','Sean Corsetti','Set N Stone','Sharon Pillips','Shishir Agrawal','Stephanie Apostolidis','Steve','Stone Central Syracuse NY','Stone Lab Studio','Stone Mex Granite & Marble','Stone N Counters','Stone Taylor Ray','Stone Tec Fabrication','Stoneworld International','Take Us For Granite','The Granite Professional','The Rock Marble & Granite','Tom','Tony Maiolo','United Granite','United Granite Marble LLC','Utica Marble & Tile Co','Venture Stone','Victor / Rosario','Viktor Dimov','Vincent J. Caputo','Will Peterson','Wolf Singer Design Studio','Yusuf','Zandro Mohak Valley Granite'];
 
 let entries=[], customClients=[], editId=null;
 let selClient='', selActivity='Visit', selStatus='WARM';
 let pendingNewClientName='';
 
-// ── STORAGE ───────────────────────────────────────────
-function load(){
+// ── SYNC DOT ──────────────────────────────────────────
+function syncDot(state){
+  const d=document.getElementById('sync-dot');
+  d.className=state;
+  if(state==='ok')setTimeout(()=>{if(d.className==='ok')d.className='';},3000);
+}
+
+// ── LOCAL STORAGE (offline cache) ────────────────────
+function loadLocal(){
   try{entries=JSON.parse(localStorage.getItem(EKEY)||'[]');}catch(e){entries=[];}
   try{customClients=JSON.parse(localStorage.getItem(CKEY)||'[]');}catch(e){customClients=[];}
 }
+function cacheEntries(){try{localStorage.setItem(EKEY,JSON.stringify(entries));}catch(e){}}
+function cacheClients(){try{localStorage.setItem(CKEY,JSON.stringify(customClients));}catch(e){}}
+
+// ── FIRESTORE LISTENERS (real-time sync) ──────────────
+function setupFirestore(){
+  // Entries: listen for any change across all devices
+  db.collection(FS_ENTRIES).onSnapshot(snap=>{
+    entries = snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
+    cacheEntries();
+    renderRecent();
+    updateHeader();
+    updateBadge();
+    const activeId = document.querySelector('.tab-body.active')?.id;
+    if(activeId==='tab-dash')renderDash();
+    if(activeId==='tab-followup')renderFollowups();
+    if(activeId==='tab-reports')renderReports();
+    syncDot('ok');
+  }, ()=>syncDot('err'));
+
+  // Custom clients: listen for additions/changes from any device
+  db.collection(FS_CLIENTS).onSnapshot(snap=>{
+    customClients = snap.docs.map(d=>d.data());
+    cacheClients();
+  }, ()=>{});
+}
+
+// ── FIRESTORE WRITES ──────────────────────────────────
+function fsDocId(numericId){return String(numericId);}
+
+function fsSaveEntry(entry){
+  syncDot('syncing');
+  db.collection(FS_ENTRIES).doc(fsDocId(entry.id)).set(entry)
+    .then(()=>syncDot('ok'))
+    .catch(()=>{syncDot('err');toast('⚠ Cloud sync failed — saved locally','warn');});
+}
+
+function fsDeleteEntry(id){
+  syncDot('syncing');
+  db.collection(FS_ENTRIES).doc(fsDocId(id)).delete()
+    .then(()=>syncDot('ok'))
+    .catch(()=>syncDot('err'));
+}
+
+function fsSaveClient(client){
+  // Use sanitised name as stable doc ID to prevent duplicates
+  const docId=(client.name||'unknown').toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,100);
+  db.collection(FS_CLIENTS).doc(docId).set(client)
+    .catch(()=>toast('⚠ Client cloud sync failed','warn'));
+}
+
+// ── STORAGE ───────────────────────────────────────────
 function persist(){
   document.getElementById('saving-bar').style.display='block';
-  try{localStorage.setItem(EKEY,JSON.stringify(entries));setTimeout(()=>document.getElementById('saving-bar').style.display='none',400);return true;}
-  catch(e){document.getElementById('saving-bar').style.display='none';toast('⚠ Save failed','err');return false;}
+  try{
+    localStorage.setItem(EKEY,JSON.stringify(entries));
+    setTimeout(()=>document.getElementById('saving-bar').style.display='none',400);
+    return true;
+  } catch(e){
+    document.getElementById('saving-bar').style.display='none';
+    toast('⚠ Save failed','err');
+    return false;
+  }
 }
-function saveClients(){try{localStorage.setItem(CKEY,JSON.stringify(customClients));}catch(e){}}
+function saveClients(){cacheClients();}
 
 // ── TOAST ─────────────────────────────────────────────
 let _tt;
@@ -392,10 +486,10 @@ function saveNewClient(){
     city:document.getElementById('nc-city').value.trim(),
     state:document.getElementById('nc-state').value.trim().toUpperCase(),
   };
-  // Remove any old entry with same name
   customClients=customClients.filter(c=>(c.name||c).toLowerCase()!==name.toLowerCase());
   customClients.push(client);
   saveClients();
+  fsSaveClient(client);          // ← sync to Firestore
   toast('✓ "'+name+'" added to your clients');
   closeModal();
   pickClient(name);
@@ -467,6 +561,7 @@ function submitEntry(){
     notes:document.getElementById('f-notes').value
   };
   entries=editId?entries.map(e=>e.id===editId?entry:e):[entry,...entries];
+  fsSaveEntry(entry);            // ← sync to Firestore
   if(persist()){
     const btn=document.getElementById('submit-btn');
     btn.className='done';btn.textContent='✓\u00a0 Saved!';
@@ -477,7 +572,12 @@ function submitEntry(){
 }
 
 // ── DELETE / EDIT ─────────────────────────────────────
-function delEntry(id){entries=entries.filter(e=>e.id!==id);persist();renderRecent();updateHeader();updateBadge();toast('Deleted');}
+function delEntry(id){
+  entries=entries.filter(e=>e.id!==id);
+  persist();
+  fsDeleteEntry(id);             // ← sync delete to Firestore
+  renderRecent();updateHeader();updateBadge();toast('Deleted');
+}
 function editEntry(id){const e=entries.find(x=>x.id===id);if(!e)return;loadForm(e);switchTab('log');setTimeout(()=>document.getElementById('content').scrollTo(0,0),50);}
 
 // ── RENDER RECENT ─────────────────────────────────────
@@ -580,9 +680,13 @@ function renderReports(){
   document.getElementById('rep-status').innerHTML=['HOT','WARM','MONITOR','COLD'].map(s=>{const n=entries.filter(e=>e.status===s).length,pct=entries.length?Math.round(n/entries.length*100):0;return`<div class="status-bar-row"><div class="status-bar-hdr"><span class="s-lbl" style="color:${sc[s]}">${s}</span><span class="s-cnt">${n} · ${pct}%</span></div><div class="bar-track" style="height:6px"><div class="bar-fill" style="width:${pct}%;background:${sc[s]}"></div></div></div>`;}).join('');
 }
 
-// ── INIT ──────────────────────────────────────────────
-load();updateHeader();updateBadge();renderRecent();
+// ── BOOT ──────────────────────────────────────────────
+loadLocal();           // show cached data instantly
+updateHeader();
+updateBadge();
+renderRecent();
 document.getElementById('f-date').value=td();
+setupFirestore();      // attach real-time listeners
 </script>
 </body>
 </html>
