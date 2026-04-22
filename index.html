@@ -26,7 +26,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 #sync-dot.syncing{background:#f59e0b;display:block;}
 #sync-dot.ok{background:#22c55e;display:block;}
 #sync-dot.err{background:#ef4444;display:block;}
-#toast{position:fixed;top:74px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,.97);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 22px;border-radius:30px;font-size:13px;font-weight:600;z-index:500;white-space:nowrap;backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;transition:opacity .3s;}
+#toast{position:fixed;top:74px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,.97);border:1px solid rgba(255,255,255,.1);color:#fff;padding:11px 22px;border-radius:30px;font-size:13px;font-weight:600;z-index:600;white-space:nowrap;backdrop-filter:blur(20px);box-shadow:0 8px 32px rgba(0,0,0,.5);display:none;transition:opacity .3s;}
 #toast.warn{background:rgba(245,158,11,.95);}
 #toast.err{background:rgba(239,68,68,.95);}
 #content{padding-top:calc(env(safe-area-inset-top) + 72px);padding-bottom:calc(env(safe-area-inset-bottom) + 82px);min-height:100vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
@@ -163,6 +163,31 @@ textarea{resize:none;line-height:1.6;}
 .modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;}
 .btn-cancel-modal{background:rgba(255,255,255,.07);border:1px solid var(--border);color:#aaa;padding:14px;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
 .btn-save-modal{background:linear-gradient(135deg,#f59e0b,#e07b00);border:none;color:#000;padding:14px;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}
+
+/* ALERT BANNER */
+#alert-container{position:fixed;top:calc(env(safe-area-inset-top) + 68px);left:0;right:0;z-index:99;}
+.alert-item{background:rgba(14,4,4,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(239,68,68,.3);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;}
+.alert-item:first-child{border-top:2px solid rgba(239,68,68,.5);}
+.alert-item:last-child{border-bottom:2px solid rgba(239,68,68,.5);}
+.alert-icon{font-size:17px;flex-shrink:0;padding-top:2px;}
+.alert-info{flex:1;min-width:0;}
+.alert-acct{font-weight:800;font-size:13px;color:#fff;margin-bottom:1px;}
+.alert-detail{font-size:11px;color:#999;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.alert-overdue{font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px;letter-spacing:.4px;}
+.alert-btns{display:flex;gap:6px;flex-wrap:wrap;}
+.btn-alert-done{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.4);color:#22c55e;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.btn-alert-reschedule{background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.35);color:#3b82f6;padding:5px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;}
+
+/* RESCHEDULE MODAL */
+#reschedule-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:450;display:none;align-items:flex-end;justify-content:center;}
+#reschedule-overlay.open{display:flex;}
+#reschedule-box{background:#141420;border-radius:24px 24px 0 0;width:100%;max-width:430px;padding:24px 20px calc(env(safe-area-inset-bottom) + 24px);border-top:1px solid rgba(255,255,255,.1);}
+
+/* REPORT GENERATION */
+.report-type-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
+.report-type-btn{border:2px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);border-radius:12px;padding:14px 6px;text-align:center;font-size:13px;font-weight:700;color:#555;cursor:pointer;transition:all .15s;font-family:inherit;}
+.report-type-btn.sel{border-color:rgba(245,158,11,.6);background:rgba(245,158,11,.1);color:var(--amber);}
+.btn-gen-pdf{width:100%;border:none;padding:15px;border-radius:13px;font-size:14px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#3b82f6,#1d4ed8);color:#fff;font-family:inherit;letter-spacing:.4px;}
 </style>
 </head>
 <body>
@@ -184,6 +209,9 @@ textarea{resize:none;line-height:1.6;}
     </div>
   </div>
 </div>
+
+<!-- PERSISTENT ALERT BANNER — visible on all tabs -->
+<div id="alert-container"></div>
 
 <!-- CONTENT -->
 <div id="content">
@@ -276,6 +304,14 @@ textarea{resize:none;line-height:1.6;}
   <div class="card"><div class="hdr-lbl">Top Accounts by Activity</div><div id="rep-accts"></div></div>
   <div class="card"><div class="hdr-lbl">Top Products Discussed</div><div id="rep-prods"></div></div>
   <div class="card"><div class="hdr-lbl">Account Status Mix</div><div id="rep-status"></div></div>
+
+  <div class="section-title" style="margin-top:24px">Generate PDF Report</div>
+  <div class="report-type-grid">
+    <button class="report-type-btn sel" id="rpt-daily"   onclick="selReportType('daily')">📄 Daily</button>
+    <button class="report-type-btn"     id="rpt-weekly"  onclick="selReportType('weekly')">📅 Weekly</button>
+    <button class="report-type-btn"     id="rpt-monthly" onclick="selReportType('monthly')">📆 Monthly</button>
+  </div>
+  <button class="btn-gen-pdf" onclick="generateReport()">⬇&nbsp; Download PDF Report</button>
 </div>
 
 </div><!-- /content -->
@@ -293,7 +329,6 @@ textarea{resize:none;line-height:1.6;}
   <div id="modal-box">
     <div class="modal-title">➕ Add New Client</div>
     <div class="modal-sub">Fill in the details — only name is required</div>
-
     <div class="modal-field"><label>Company / Client Name *</label><input type="text" id="nc-name" placeholder="e.g. Empire Stone NJ" autocomplete="off"/></div>
     <div class="modal-field"><label>Contact Name</label><input type="text" id="nc-contact" placeholder="Contact person" autocomplete="off"/></div>
     <div class="modal-field"><label>Phone Number</label><input type="tel" id="nc-phone" placeholder="(201) 555-0100" inputmode="tel"/></div>
@@ -309,12 +344,29 @@ textarea{resize:none;line-height:1.6;}
   </div>
 </div>
 
+<!-- RESCHEDULE MODAL -->
+<div id="reschedule-overlay" onclick="handleRescheduleOverlayClick(event)">
+  <div id="reschedule-box">
+    <div class="modal-title">📅 Reschedule Follow-Up</div>
+    <div class="modal-sub" id="reschedule-sub">Set a new follow-up date</div>
+    <div class="modal-field"><label>New Follow-Up Date</label><input type="date" id="reschedule-date"/></div>
+    <div class="modal-btns">
+      <button class="btn-cancel-modal" onclick="closeReschedule()">Cancel</button>
+      <button class="btn-save-modal" onclick="saveReschedule()">Save Date</button>
+    </div>
+  </div>
+</div>
+
+<!-- jsPDF + AutoTable (no server needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
 <!-- Firebase v9 compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
 <script>
-// ── FIREBASE CONFIG — paste your values here ──────────
+// ── FIREBASE CONFIG ────────────────────────────────────
 const firebaseConfig = {
   apiKey:            "AIzaSyBQ7TIbLZzgOfXBcTjT31Aicu6zjgUY5mc",
   authDomain:        "igm-tracker.firebaseapp.com",
@@ -327,8 +379,6 @@ const firebaseConfig = {
 // ── INIT ──────────────────────────────────────────────
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-
-// Enable offline persistence so app works without internet
 db.enablePersistence({synchronizeTabs: true}).catch(() => {});
 
 const EKEY='igm_e_v4', CKEY='igm_c_v4';
@@ -341,6 +391,9 @@ let entries=[], customClients=[], editId=null;
 let selClient='', selActivity='Visit', selStatus='WARM';
 let pendingNewClientName='';
 
+// Alert + report state
+let knownOverdueIds=new Set(), selRescheduleId=null, selReportTypeSel='daily';
+
 // ── SYNC DOT ──────────────────────────────────────────
 function syncDot(state){
   const d=document.getElementById('sync-dot');
@@ -348,7 +401,7 @@ function syncDot(state){
   if(state==='ok')setTimeout(()=>{if(d.className==='ok')d.className='';},3000);
 }
 
-// ── LOCAL STORAGE (offline cache) ────────────────────
+// ── LOCAL STORAGE ─────────────────────────────────────
 function loadLocal(){
   try{entries=JSON.parse(localStorage.getItem(EKEY)||'[]');}catch(e){entries=[];}
   try{customClients=JSON.parse(localStorage.getItem(CKEY)||'[]');}catch(e){customClients=[];}
@@ -356,15 +409,15 @@ function loadLocal(){
 function cacheEntries(){try{localStorage.setItem(EKEY,JSON.stringify(entries));}catch(e){}}
 function cacheClients(){try{localStorage.setItem(CKEY,JSON.stringify(customClients));}catch(e){}}
 
-// ── FIRESTORE LISTENERS (real-time sync) ──────────────
+// ── FIRESTORE LISTENERS ───────────────────────────────
 function setupFirestore(){
-  // Entries: listen for any change across all devices
   db.collection(FS_ENTRIES).onSnapshot(snap=>{
     entries = snap.docs.map(d=>d.data()).sort((a,b)=>b.id-a.id);
     cacheEntries();
     renderRecent();
     updateHeader();
     updateBadge();
+    renderAlerts();
     const activeId = document.querySelector('.tab-body.active')?.id;
     if(activeId==='tab-dash')renderDash();
     if(activeId==='tab-followup')renderFollowups();
@@ -372,7 +425,6 @@ function setupFirestore(){
     syncDot('ok');
   }, ()=>syncDot('err'));
 
-  // Custom clients: listen for additions/changes from any device
   db.collection(FS_CLIENTS).onSnapshot(snap=>{
     customClients = snap.docs.map(d=>d.data());
     cacheClients();
@@ -397,7 +449,6 @@ function fsDeleteEntry(id){
 }
 
 function fsSaveClient(client){
-  // Use sanitised name as stable doc ID to prevent duplicates
   const docId=(client.name||'unknown').toLowerCase().replace(/[^a-z0-9]+/g,'_').slice(0,100);
   db.collection(FS_CLIENTS).doc(docId).set(client)
     .catch(()=>toast('⚠ Client cloud sync failed','warn'));
@@ -431,6 +482,115 @@ function td(){return new Date().toISOString().slice(0,10);}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function allClientNames(){return[...new Set([...BASE_CLIENTS,...customClients.map(c=>c.name||c)])].sort();}
 function borderCls(s){return{HOT:'lHOT',WARM:'lWARM',MONITOR:'lMONITOR',COLD:'lCOLD'}[s]||'';}
+
+// Days difference between two YYYY-MM-DD strings (d1 - d2)
+function dateDiffDays(d1,d2){
+  const p1=d1.split('-').map(Number),p2=d2.split('-').map(Number);
+  return Math.round((new Date(p1[0],p1[1]-1,p1[2])-new Date(p2[0],p2[1]-1,p2[2]))/86400000);
+}
+
+// ── OVERDUE ENTRIES HELPER ────────────────────────────
+function overdueEntries(){
+  return entries.filter(e=>e.followupDate&&e.followupDate<td()&&!e.followupDone);
+}
+
+// ── ALERT SOUND ───────────────────────────────────────
+function playAlertSound(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator(),gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    osc.type='sine';
+    osc.frequency.setValueAtTime(880,ctx.currentTime);
+    osc.frequency.setValueAtTime(1100,ctx.currentTime+0.15);
+    gain.gain.setValueAtTime(0.22,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5);
+    osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.5);
+  }catch(e){}
+}
+
+// ── ADJUST CONTENT PADDING FOR ALERT BANNER ──────────
+function adjustContentPadding(){
+  const h=document.getElementById('alert-container').offsetHeight;
+  document.getElementById('content').style.paddingTop=
+    h>0?`calc(env(safe-area-inset-top) + ${72+h}px)`:'calc(env(safe-area-inset-top) + 72px)';
+}
+
+// ── RENDER ALERTS ─────────────────────────────────────
+function renderAlerts(){
+  const overdue=overdueEntries();
+  // Detect newly overdue (triggers sound)
+  let hasNew=false;
+  overdue.forEach(e=>{if(!knownOverdueIds.has(e.id)){hasNew=true;knownOverdueIds.add(e.id);}});
+  [...knownOverdueIds].forEach(id=>{if(!overdue.find(e=>e.id===id))knownOverdueIds.delete(id);});
+  if(hasNew&&overdue.length>0)playAlertSound();
+
+  const container=document.getElementById('alert-container');
+  if(!overdue.length){container.innerHTML='';adjustContentPadding();return;}
+
+  container.innerHTML=overdue.map(e=>{
+    const days=dateDiffDays(td(),e.followupDate);
+    const dText=days===0?'Due today':days===1?'1 day overdue':`${days} days overdue`;
+    const noteSnip=e.notes?(' — '+e.notes.slice(0,55)+(e.notes.length>55?'…':'')):'';
+    return `<div class="alert-item">
+      <div class="alert-icon">🔔</div>
+      <div class="alert-info">
+        <div class="alert-acct">${esc(e.account)}</div>
+        <div class="alert-detail">${esc(e.activity+noteSnip)}</div>
+        <div class="alert-overdue">⚠ ${esc(dText)}</div>
+        <div class="alert-btns">
+          <button class="btn-alert-done" onclick="markFollowupDone(${e.id})">✓ Mark Done</button>
+          <button class="btn-alert-reschedule" onclick="openReschedule(${e.id})">📅 Reschedule</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  adjustContentPadding();
+}
+
+// ── MARK FOLLOW-UP DONE ───────────────────────────────
+function markFollowupDone(id){
+  const e=entries.find(x=>x.id===id);
+  if(!e)return;
+  e.followupDone=true;
+  fsSaveEntry(e);
+  persist();
+  renderAlerts();
+  updateBadge();
+  renderFollowups();
+  toast('✓ Follow-up marked as done');
+}
+
+// ── RESCHEDULE MODAL ──────────────────────────────────
+function openReschedule(id){
+  selRescheduleId=id;
+  const e=entries.find(x=>x.id===id);
+  document.getElementById('reschedule-sub').textContent=e?`${e.account} — ${e.activity}`:'Set a new follow-up date';
+  document.getElementById('reschedule-date').value='';
+  document.getElementById('reschedule-overlay').classList.add('open');
+}
+function closeReschedule(){
+  document.getElementById('reschedule-overlay').classList.remove('open');
+  selRescheduleId=null;
+}
+function handleRescheduleOverlayClick(ev){
+  if(ev.target===document.getElementById('reschedule-overlay'))closeReschedule();
+}
+function saveReschedule(){
+  const newDate=document.getElementById('reschedule-date').value;
+  if(!newDate){toast('⚠ Pick a new date first','warn');return;}
+  const e=entries.find(x=>x.id===selRescheduleId);
+  if(!e)return;
+  e.followupDate=newDate;
+  e.followupDone=false;
+  fsSaveEntry(e);
+  persist();
+  closeReschedule();
+  renderAlerts();
+  updateBadge();
+  renderFollowups();
+  toast('✓ Rescheduled to '+newDate);
+}
 
 // ── CLIENT DROPDOWN ───────────────────────────────────
 function openDD(){filterClients(document.getElementById('client-search').value);}
@@ -469,12 +629,8 @@ function openNewClientModal(prefill){
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(()=>document.getElementById('nc-name').focus(),300);
 }
-function closeModal(){
-  document.getElementById('modal-overlay').classList.remove('open');
-}
-function handleOverlayClick(e){
-  if(e.target===document.getElementById('modal-overlay'))closeModal();
-}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');}
+function handleOverlayClick(e){if(e.target===document.getElementById('modal-overlay'))closeModal();}
 function saveNewClient(){
   const name=document.getElementById('nc-name').value.trim();
   if(!name){toast('⚠ Client name is required','warn');return;}
@@ -489,7 +645,7 @@ function saveNewClient(){
   customClients=customClients.filter(c=>(c.name||c).toLowerCase()!==name.toLowerCase());
   customClients.push(client);
   saveClients();
-  fsSaveClient(client);          // ← sync to Firestore
+  fsSaveClient(client);
   toast('✓ "'+name+'" added to your clients');
   closeModal();
   pickClient(name);
@@ -557,11 +713,12 @@ function submitEntry(){
     price:document.getElementById('f-price').value,
     orderAmount:document.getElementById('f-order').value,
     followupDate:document.getElementById('f-followup').value,
+    followupDone:false,
     status:selStatus,
     notes:document.getElementById('f-notes').value
   };
   entries=editId?entries.map(e=>e.id===editId?entry:e):[entry,...entries];
-  fsSaveEntry(entry);            // ← sync to Firestore
+  fsSaveEntry(entry);
   if(persist()){
     const btn=document.getElementById('submit-btn');
     btn.className='done';btn.textContent='✓\u00a0 Saved!';
@@ -575,8 +732,8 @@ function submitEntry(){
 function delEntry(id){
   entries=entries.filter(e=>e.id!==id);
   persist();
-  fsDeleteEntry(id);             // ← sync delete to Firestore
-  renderRecent();updateHeader();updateBadge();toast('Deleted');
+  fsDeleteEntry(id);
+  renderRecent();updateHeader();updateBadge();renderAlerts();toast('Deleted');
 }
 function editEntry(id){const e=entries.find(x=>x.id===id);if(!e)return;loadForm(e);switchTab('log');setTimeout(()=>document.getElementById('content').scrollTo(0,0),50);}
 
@@ -609,7 +766,7 @@ function updateHeader(){
   document.getElementById('hdate').textContent=new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
 }
 function updateBadge(){
-  const t=td(),cnt=entries.filter(e=>e.followupDate&&e.followupDate<t).length;
+  const cnt=overdueEntries().length;
   const b=document.getElementById('od-badge');
   cnt>0?(b.textContent=cnt,b.classList.add('show')):b.classList.remove('show');
 }
@@ -650,8 +807,8 @@ function renderDash(){
 // ── FOLLOW-UPS ────────────────────────────────────────
 function renderFollowups(){
   const t=td();
-  const od=entries.filter(e=>e.followupDate&&e.followupDate<t);
-  const up=entries.filter(e=>e.followupDate&&e.followupDate>=t).sort((a,b)=>a.followupDate.localeCompare(b.followupDate));
+  const od=overdueEntries();
+  const up=entries.filter(e=>e.followupDate&&e.followupDate>=t&&!e.followupDone).sort((a,b)=>a.followupDate.localeCompare(b.followupDate));
   const odEl=document.getElementById('fu-overdue');
   if(od.length){odEl.innerHTML=`<div class="overdue-card"><div class="overdue-title">⚠ Overdue · ${od.length}</div>${od.map(e=>`<div class="overdue-item"><div><div class="card-title">${esc(e.account)}</div><div class="card-sub">${esc(e.followupDate)} · ${esc(e.activity)}</div></div><div style="display:flex;align-items:center;gap:8px"><span class="badge ${esc(e.status)}">${esc(e.status)}</span><button class="btn-edit" onclick="editEntry(${e.id})">✎</button></div></div>`).join('')}</div>`;}
   else odEl.innerHTML='';
@@ -680,13 +837,224 @@ function renderReports(){
   document.getElementById('rep-status').innerHTML=['HOT','WARM','MONITOR','COLD'].map(s=>{const n=entries.filter(e=>e.status===s).length,pct=entries.length?Math.round(n/entries.length*100):0;return`<div class="status-bar-row"><div class="status-bar-hdr"><span class="s-lbl" style="color:${sc[s]}">${s}</span><span class="s-cnt">${n} · ${pct}%</span></div><div class="bar-track" style="height:6px"><div class="bar-fill" style="width:${pct}%;background:${sc[s]}"></div></div></div>`;}).join('');
 }
 
+// ── REPORT TYPE SELECTOR ──────────────────────────────
+function selReportType(type){
+  selReportTypeSel=type;
+  ['daily','weekly','monthly'].forEach(t=>
+    document.getElementById('rpt-'+t).classList.toggle('sel',t===type)
+  );
+}
+
+// ── PDF GENERATION ────────────────────────────────────
+function generateReport(){
+  if(typeof window.jspdf==='undefined'){toast('⚠ PDF library not ready, try again','warn');return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF('p','mm','a4');
+  const pw=210,ml=15,mr=15,uw=pw-ml-mr;
+  const today=td();
+  const type=selReportTypeSel;
+
+  let periodEntries=[],periodRange='',filename='',reportLabel='';
+
+  if(type==='daily'){
+    periodEntries=entries.filter(e=>e.date===today).sort((a,b)=>a.date.localeCompare(b.date));
+    periodRange=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    reportLabel='Daily Report';
+    filename=`IGM_Daily_${today}.pdf`;
+  } else if(type==='weekly'){
+    const start=new Date();start.setDate(start.getDate()-6);
+    const startStr=start.toISOString().slice(0,10);
+    periodEntries=entries.filter(e=>e.date>=startStr&&e.date<=today).sort((a,b)=>a.date.localeCompare(b.date));
+    const sf=start.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    const ef=new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+    periodRange=`Week of ${sf} – ${ef}`;
+    reportLabel='Weekly Report';
+    filename=`IGM_Weekly_${start.toISOString().slice(0,10)}_to_${today}.pdf`;
+  } else {
+    const month=today.slice(0,7);
+    periodEntries=entries.filter(e=>e.date&&e.date.slice(0,7)===month).sort((a,b)=>a.date.localeCompare(b.date));
+    periodRange=new Date(month+'-01').toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    reportLabel='Monthly Report';
+    filename=`IGM_Monthly_${month}.pdf`;
+  }
+
+  // ── PAGE HEADER ──────────────────────────────────────
+  let y=20;
+
+  // Logo box
+  doc.setFillColor(245,158,11);
+  doc.roundedRect(ml,y-8,20,20,3,3,'F');
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(12);
+  doc.setTextColor(0,0,0);
+  doc.text('IGM',ml+3.5,y+5.5);
+
+  // Company name & rep
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(17);
+  doc.setTextColor(25,25,25);
+  doc.text('IGM Surfaces',ml+24,y-1);
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(100,100,100);
+  doc.text('Jay Rajkund — EWR Territory',ml+24,y+6);
+
+  // Right side
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(9);
+  doc.setTextColor(80,80,80);
+  doc.text(periodRange,pw-mr,y-1,{align:'right'});
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(8);
+  doc.setTextColor(140,140,140);
+  doc.text('Generated: '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}),pw-mr,y+6,{align:'right'});
+
+  y+=16;
+  doc.setDrawColor(220,220,220);
+  doc.line(ml,y,pw-mr,y);
+  y+=7;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.setTextColor(25,25,25);
+  doc.text(reportLabel,ml,y);
+  y+=10;
+
+  // ── SUMMARY STATS BOX ──────────────────────────────
+  const totalVisits=periodEntries.filter(e=>e.activity==='Visit').length;
+  const totalCalls=periodEntries.filter(e=>e.activity==='Call').length;
+  const totalOrders=periodEntries.filter(e=>e.activity==='Order Placed').length;
+  const totalPipeline=periodEntries.reduce((s,e)=>s+parseFloat(e.orderAmount||0),0);
+  const hotCount=periodEntries.filter(e=>e.status==='HOT').length;
+
+  doc.setFillColor(255,252,240);
+  doc.setDrawColor(245,158,11);
+  doc.roundedRect(ml,y,uw,30,3,3,'FD');
+
+  const stats=[
+    {l:'Entries',v:String(periodEntries.length)},
+    {l:'Visits',v:String(totalVisits)},
+    {l:'Calls',v:String(totalCalls)},
+    {l:'Orders',v:String(totalOrders)},
+    {l:'Pipeline',v:'$'+totalPipeline.toLocaleString()},
+    {l:'HOT Accts',v:String(hotCount)},
+  ];
+  const sw=uw/stats.length;
+  stats.forEach((s,i)=>{
+    const sx=ml+i*sw+sw/2;
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.setTextColor(180,90,0);
+    doc.text(s.v,sx,y+16,{align:'center'});
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7);
+    doc.setTextColor(130,100,50);
+    doc.text(s.l,sx,y+23,{align:'center'});
+  });
+  y+=36;
+
+  // ── ACTIVITY LOG TABLE ────────────────────────────
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(25,25,25);
+  doc.text('Activity Log',ml,y);
+  y+=4;
+
+  if(periodEntries.length===0){
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(9);
+    doc.setTextColor(160,160,160);
+    doc.text('No entries for this period.',ml,y+6);
+    y+=14;
+  } else {
+    doc.autoTable({
+      head:[['Date','Account','Activity','Material','Price Quoted','Order $','Status','Notes']],
+      body:periodEntries.map(e=>[
+        e.date||'',
+        e.account||'',
+        e.activity||'',
+        e.product||'',
+        e.price||'',
+        e.orderAmount?'$'+parseFloat(e.orderAmount).toLocaleString():'',
+        e.status||'',
+        e.notes||''
+      ]),
+      startY:y,
+      styles:{fontSize:7.5,cellPadding:2,overflow:'linebreak',textColor:[30,30,30]},
+      headStyles:{fillColor:[245,158,11],textColor:[0,0,0],fontStyle:'bold',fontSize:8},
+      alternateRowStyles:{fillColor:[250,250,250]},
+      columnStyles:{
+        0:{cellWidth:21},1:{cellWidth:38},2:{cellWidth:24},
+        3:{cellWidth:26},4:{cellWidth:21},5:{cellWidth:18},
+        6:{cellWidth:17},7:{cellWidth:'auto'}
+      },
+      margin:{left:ml,right:mr,bottom:22}
+    });
+    y=doc.lastAutoTable.finalY+10;
+  }
+
+  // ── FOLLOW-UPS SECTION ───────────────────────────
+  const pending=entries.filter(e=>e.followupDate&&!e.followupDone)
+    .sort((a,b)=>a.followupDate.localeCompare(b.followupDate));
+
+  // Check if we need a new page
+  if(y>240){doc.addPage();y=20;}
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(11);
+  doc.setTextColor(25,25,25);
+  doc.text('Pending Follow-Ups',ml,y);
+  y+=4;
+
+  if(pending.length===0){
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(9);
+    doc.setTextColor(160,160,160);
+    doc.text('No pending follow-ups.',ml,y+6);
+  } else {
+    doc.autoTable({
+      head:[['Due Date','Account','Activity','Status','Notes']],
+      body:pending.map(e=>[e.followupDate||'',e.account||'',e.activity||'',e.status||'',e.notes||'']),
+      startY:y,
+      styles:{fontSize:8,cellPadding:2,overflow:'linebreak'},
+      headStyles:{fillColor:[59,130,246],textColor:[255,255,255],fontStyle:'bold'},
+      alternateRowStyles:{fillColor:[250,250,250]},
+      columnStyles:{0:{cellWidth:25},1:{cellWidth:50},2:{cellWidth:28},3:{cellWidth:20},4:{cellWidth:'auto'}},
+      margin:{left:ml,right:mr,bottom:22},
+      willDrawCell:function(data){
+        if(data.section==='body'&&data.row.raw[0]<today){
+          data.cell.styles.textColor=[200,30,30];
+          data.cell.styles.fillColor=[255,245,245];
+        }
+      }
+    });
+  }
+
+  // ── FOOTERS ON ALL PAGES ─────────────────────────
+  const totalPages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=totalPages;p++){
+    doc.setPage(p);
+    doc.setDrawColor(210,210,210);
+    doc.line(ml,285,pw-mr,285);
+    doc.setFont('helvetica','italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(160,160,160);
+    doc.text('Confidential — IGM Surfaces Internal Use',ml,290);
+    doc.text(`Page ${p} of ${totalPages}`,pw-mr,290,{align:'right'});
+  }
+
+  doc.save(filename);
+  toast('✓ Downloaded: '+filename);
+}
+
 // ── BOOT ──────────────────────────────────────────────
-loadLocal();           // show cached data instantly
+loadLocal();
 updateHeader();
 updateBadge();
+renderAlerts();
 renderRecent();
 document.getElementById('f-date').value=td();
-setupFirestore();      // attach real-time listeners
+setupFirestore();
 </script>
 </body>
 </html>
