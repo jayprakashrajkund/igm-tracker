@@ -165,10 +165,14 @@ textarea{resize:none;line-height:1.6;}
 .btn-save-modal{background:linear-gradient(135deg,#f59e0b,#e07b00);border:none;color:#000;padding:14px;border-radius:12px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;}
 
 /* ALERT BANNER */
-#alert-container{position:fixed;top:calc(env(safe-area-inset-top) + 68px);left:0;right:0;z-index:99;}
-.alert-item{background:rgba(14,4,4,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(239,68,68,.3);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;}
-.alert-item:first-child{border-top:2px solid rgba(239,68,68,.5);}
-.alert-item:last-child{border-bottom:2px solid rgba(239,68,68,.5);}
+#alert-container{position:fixed;top:calc(env(safe-area-inset-top) + 68px);left:0;right:0;z-index:99;border-top:2px solid rgba(239,68,68,.5);border-bottom:2px solid rgba(239,68,68,.4);}
+#alert-summary{background:rgba(60,5,5,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;padding:8px 14px;gap:8px;}
+#alert-summary-text{flex:1;font-size:13px;font-weight:700;color:var(--red);}
+#alert-toggle-btn{background:rgba(239,68,68,.18);border:1px solid rgba(239,68,68,.4);color:#ff8080;padding:4px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;}
+#alert-list{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:35vh;display:none;}
+#alert-list.open{display:block;}
+.alert-item{background:rgba(14,4,4,.97);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(239,68,68,.18);padding:10px 14px;display:flex;align-items:flex-start;gap:10px;}
+.alert-item:last-child{border-bottom:none;}
 .alert-icon{font-size:17px;flex-shrink:0;padding-top:2px;}
 .alert-info{flex:1;min-width:0;}
 .alert-acct{font-weight:800;font-size:13px;color:#fff;margin-bottom:1px;}
@@ -211,7 +215,13 @@ textarea{resize:none;line-height:1.6;}
 </div>
 
 <!-- PERSISTENT ALERT BANNER — visible on all tabs -->
-<div id="alert-container"></div>
+<div id="alert-container" style="display:none">
+  <div id="alert-summary">
+    <span id="alert-summary-text"></span>
+    <button id="alert-toggle-btn" onclick="toggleAlertList()">View All</button>
+  </div>
+  <div id="alert-list"></div>
+</div>
 
 <!-- CONTENT -->
 <div id="content">
@@ -516,6 +526,15 @@ function adjustContentPadding(){
     h>0?`calc(env(safe-area-inset-top) + ${72+h}px)`:'calc(env(safe-area-inset-top) + 72px)';
 }
 
+// ── TOGGLE EXPANDED ALERT LIST ────────────────────────
+function toggleAlertList(){
+  const list=document.getElementById('alert-list');
+  const btn=document.getElementById('alert-toggle-btn');
+  const open=list.classList.toggle('open');
+  btn.textContent=open?'Hide':'View All';
+  adjustContentPadding();
+}
+
 // ── RENDER ALERTS ─────────────────────────────────────
 function renderAlerts(){
   const overdue=overdueEntries();
@@ -526,9 +545,18 @@ function renderAlerts(){
   if(hasNew&&overdue.length>0)playAlertSound();
 
   const container=document.getElementById('alert-container');
-  if(!overdue.length){container.innerHTML='';adjustContentPadding();return;}
+  if(!overdue.length){
+    container.style.display='none';
+    adjustContentPadding();
+    return;
+  }
 
-  container.innerHTML=overdue.map(e=>{
+  // Summary bar
+  const label=overdue.length===1?'1 overdue follow-up':`${overdue.length} overdue follow-ups`;
+  document.getElementById('alert-summary-text').textContent='🔔 '+label;
+
+  // Alert list items (always rendered; shown/hidden via CSS)
+  document.getElementById('alert-list').innerHTML=overdue.map(e=>{
     const days=dateDiffDays(td(),e.followupDate);
     const dText=days===0?'Due today':days===1?'1 day overdue':`${days} days overdue`;
     const noteSnip=e.notes?(' — '+e.notes.slice(0,55)+(e.notes.length>55?'…':'')):'';
@@ -545,6 +573,8 @@ function renderAlerts(){
       </div>
     </div>`;
   }).join('');
+
+  container.style.display='block';
   adjustContentPadding();
 }
 
