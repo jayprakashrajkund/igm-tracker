@@ -177,6 +177,30 @@ select option{background:#1a1a1a;}
 .toggle.on{background:var(--amber);}
 .toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform 0.2s;}
 .toggle.on::after{transform:translateX(18px);}
+
+/* REPORT SUB-TABS */
+.report-sub-tab{flex:1;padding:10px 4px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--sub);cursor:pointer;background:transparent;border:none;border-bottom:2px solid transparent;}
+.report-sub-tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+.btn-export{padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;border:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.1);color:var(--amber);cursor:pointer;}
+/* VISIT REPORT ITEMS */
+.visit-report-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;}
+.vri-account{font-size:13px;font-weight:700;margin-bottom:4px;}
+.vri-meta{font-size:11px;color:var(--muted);margin-bottom:4px;}
+.vri-notes{font-size:12px;color:var(--sub);line-height:1.4;}
+.vri-fu{font-size:11px;color:var(--amber);margin-top:4px;}
+.day-group-header{padding:8px 0 4px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:8px;}
+.weekly-summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;}
+.wsum-box{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center;}
+.wsum-val{font-size:18px;font-weight:800;color:var(--amber);}
+.wsum-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;}
+.monthly-tally{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.tally-item{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
+.tally-val{font-size:22px;font-weight:800;color:var(--amber);}
+.tally-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
+/* FOLLOW-UP TAPPABLE */
+.fu-item{cursor:pointer;}
+.fu-item:active{background:rgba(255,255,255,0.03);}
+.fu-edit-hint{font-size:10px;color:var(--amber);margin-top:3px;font-weight:600;}
 </style>
 </head>
 <body>
@@ -397,26 +421,48 @@ select option{background:#1a1a1a;}
 
 <!-- ══════════ TAB: REPORTS ══════════ -->
 <div class="tab-body" id="tab-reports">
-  <div class="search-wrap">
-    <input class="search-input" id="history-search" placeholder="🔍 Search history…" oninput="renderHistory()">
+
+  <!-- Sub-tab nav -->
+  <div style="display:flex;background:#111;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <button class="report-sub-tab active" data-rtab="daily" onclick="switchReportTab('daily')">Daily</button>
+    <button class="report-sub-tab" data-rtab="weekly" onclick="switchReportTab('weekly')">Weekly</button>
+    <button class="report-sub-tab" data-rtab="monthly" onclick="switchReportTab('monthly')">Monthly</button>
+    <button class="report-sub-tab" data-rtab="history" onclick="switchReportTab('history')">History</button>
   </div>
-  <div class="filter-row" id="history-filters">
-    <div class="filter-chip active" data-filter="all" onclick="setHistFilter(this,'all')">All</div>
-    <div class="filter-chip" data-filter="Visit" onclick="setHistFilter(this,'Visit')">Visits</div>
-    <div class="filter-chip" data-filter="Call" onclick="setHistFilter(this,'Call')">Calls</div>
-    <div class="filter-chip" data-filter="Price Quote" onclick="setHistFilter(this,'Price Quote')">Quotes</div>
-    <div class="filter-chip" data-filter="Order Placed" onclick="setHistFilter(this,'Order Placed')">Orders</div>
-    <div class="filter-chip" data-filter="Win-Back" onclick="setHistFilter(this,'Win-Back')">Win-Back</div>
-    <div class="filter-chip" data-filter="HOT" onclick="setHistFilter(this,'HOT')">HOT Only</div>
+
+  <!-- VISIT REPORTS SECTION (Daily / Weekly / Monthly) -->
+  <div id="visit-report-section" style="padding:10px 16px 16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div id="visit-report-title" style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase;flex:1;margin-right:8px;"></div>
+      <button class="btn-export" onclick="exportReport()">📤 Export</button>
+    </div>
+    <div id="visit-report-content"></div>
   </div>
-  <div class="section-lbl">Top Accounts</div>
-  <div class="card" id="top-accounts"></div>
-  <div class="section-lbl">Activity Breakdown</div>
-  <div class="card" id="act-breakdown"></div>
-  <div class="section-lbl">Route Performance</div>
-  <div class="card" id="route-report"></div>
-  <div class="section-lbl">All Entries</div>
-  <div id="history-list"></div>
+
+  <!-- HISTORY SECTION -->
+  <div id="history-section" style="display:none;">
+    <div class="search-wrap">
+      <input class="search-input" id="history-search" placeholder="🔍 Search history…" oninput="renderHistory()">
+    </div>
+    <div class="filter-row" id="history-filters">
+      <div class="filter-chip active" data-filter="all" onclick="setHistFilter(this,'all')">All</div>
+      <div class="filter-chip" data-filter="Visit" onclick="setHistFilter(this,'Visit')">Visits</div>
+      <div class="filter-chip" data-filter="Call" onclick="setHistFilter(this,'Call')">Calls</div>
+      <div class="filter-chip" data-filter="Price Quote" onclick="setHistFilter(this,'Price Quote')">Quotes</div>
+      <div class="filter-chip" data-filter="Order Placed" onclick="setHistFilter(this,'Order Placed')">Orders</div>
+      <div class="filter-chip" data-filter="Win-Back" onclick="setHistFilter(this,'Win-Back')">Win-Back</div>
+      <div class="filter-chip" data-filter="HOT" onclick="setHistFilter(this,'HOT')">HOT Only</div>
+    </div>
+    <div class="section-lbl">Top Accounts</div>
+    <div class="card" id="top-accounts"></div>
+    <div class="section-lbl">Activity Breakdown</div>
+    <div class="card" id="act-breakdown"></div>
+    <div class="section-lbl">Route Performance</div>
+    <div class="card" id="route-report"></div>
+    <div class="section-lbl">All Entries</div>
+    <div id="history-list"></div>
+  </div>
+
 </div>
 
 </div><!-- end content -->
@@ -495,6 +541,7 @@ const DAILY_TARGETS = {
 let entries = [];
 let editId = null;
 let histFilter = 'all';
+let reportTab = 'daily';
 
 // ── FIRESTORE REAL-TIME LISTENER ──
 const q = query(collection(db, "activities"), orderBy("ts", "desc"));
@@ -820,30 +867,39 @@ function fuItemHTML(e, today){
   else if(diff === 0){ cls='today'; lbl='TODAY'; }
   else if(diff === 1){ cls='soon'; lbl='TOMORROW'; }
   else if(diff <= 3){ cls='soon'; lbl=diff+'d'; }
-  return `<div class="fu-item">
-    <div>
+  return `<div class="fu-item" onclick="editEntry('${e.id}')">
+    <div style="flex:1;min-width:0;">
       <div class="fu-acct">${e.account}${e.contact ? ' · '+e.contact : ''}</div>
       <div class="fu-detail">${e.actType}${e.stage ? ' · '+e.stage : ''}${e.route ? ' · '+e.route : ''}</div>
-      ${e.notes ? `<div style="font-size:10px;color:var(--sub);margin-top:2px;">${e.notes.substring(0,60)}…</div>` : ''}
+      ${e.notes ? `<div style="font-size:10px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.notes.substring(0,60)}${e.notes.length>60?'…':''}</div>` : ''}
     </div>
     <div style="text-align:right;flex-shrink:0;margin-left:10px;">
       <div class="fu-day ${cls}">${lbl}</div>
-      ${e.status ? `<div style="font-size:9px;margin-top:3px;" class="pill-${e.status}">${e.status}</div>` : ''}
+      ${e.status ? `<div style="font-size:9px;margin-top:3px;font-weight:700;" class="pill-${e.status}">${e.status}</div>` : ''}
+      <div class="fu-edit-hint">✏️ Edit</div>
     </div>
   </div>`;
 }
 
 // ── REPORTS ──
-window.setHistFilter = (el, val) => {
-  histFilter = val;
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  renderHistory();
+window.switchReportTab = (tab) => {
+  reportTab = tab;
+  document.querySelectorAll('.report-sub-tab').forEach(t => t.classList.toggle('active', t.dataset.rtab === tab));
+  document.getElementById('visit-report-section').style.display = tab !== 'history' ? '' : 'none';
+  document.getElementById('history-section').style.display = tab === 'history' ? '' : 'none';
   renderReports();
 };
 
 function renderReports(){
-  // Top accounts
+  if(reportTab === 'history'){
+    renderHistoryStats();
+    renderHistory();
+  } else {
+    renderVisitReport(reportTab);
+  }
+}
+
+function renderHistoryStats(){
   const acctCount = {};
   entries.forEach(e => { acctCount[e.account] = (acctCount[e.account]||0)+1; });
   const topAccts = Object.entries(acctCount).sort((a,b) => b[1]-a[1]).slice(0,8);
@@ -855,7 +911,6 @@ function renderReports(){
       <div class="report-bar-count">${c}</div>
     </div>`).join('') || '<div style="color:var(--sub);font-size:13px;">No data yet.</div>';
 
-  // Activity breakdown
   const actCount = {};
   entries.forEach(e => { actCount[e.actType] = (actCount[e.actType]||0)+1; });
   const topActs = Object.entries(actCount).sort((a,b) => b[1]-a[1]);
@@ -867,7 +922,6 @@ function renderReports(){
       <div class="report-bar-count">${c}</div>
     </div>`).join('') || '<div style="color:var(--sub);font-size:13px;">No data yet.</div>';
 
-  // Route performance
   const routeCount = {};
   entries.forEach(e => { if(e.route){ routeCount[e.route] = (routeCount[e.route]||0)+1; }});
   const topRoutes = Object.entries(routeCount).sort((a,b) => b[1]-a[1]);
@@ -878,9 +932,130 @@ function renderReports(){
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${Math.round((c/maxR)*100)}%"></div></div>
       <div class="report-bar-count">${c}</div>
     </div>`).join('') : '<div style="color:var(--sub);font-size:13px;">Log route clusters to see data.</div>';
-
-  renderHistory();
 }
+
+function renderVisitReport(type){
+  const today = new Date().toISOString().split('T')[0];
+  const thisWeekStart = getWeekStart();
+  const thisMonthStart = today.substring(0,7) + '-01';
+  const titleEl = document.getElementById('visit-report-title');
+  const el = document.getElementById('visit-report-content');
+
+  let visits;
+  if(type === 'daily'){
+    visits = entries.filter(e => e.dateStr === today && e.actType === 'Visit');
+    titleEl.textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  } else if(type === 'weekly'){
+    visits = entries.filter(e => e.dateStr >= thisWeekStart && e.actType === 'Visit').sort((a,b) => b.dateStr.localeCompare(a.dateStr));
+    titleEl.textContent = 'Week of ' + thisWeekStart;
+  } else {
+    visits = entries.filter(e => e.dateStr >= thisMonthStart && e.actType === 'Visit').sort((a,b) => b.dateStr.localeCompare(a.dateStr));
+    titleEl.textContent = today.substring(0,7);
+  }
+
+  if(!visits.length){
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🚗</div><div class="empty-text">No visits logged for this period.</div></div>';
+    return;
+  }
+
+  if(type === 'daily'){
+    el.innerHTML = visits.map(e => visitReportItemHTML(e)).join('');
+  } else if(type === 'weekly'){
+    const totalOrders = visits.reduce((s,e) => s+(e.orderAmt||0),0);
+    const pendingFU = visits.filter(e => e.followupDate && e.followupDate >= today).length;
+    let html = `<div class="weekly-summary">
+      <div class="wsum-box"><div class="wsum-val">${visits.length}</div><div class="wsum-lbl">Visits</div></div>
+      <div class="wsum-box"><div class="wsum-val">$${fmtK(totalOrders)}</div><div class="wsum-lbl">Orders</div></div>
+      <div class="wsum-box"><div class="wsum-val">${pendingFU}</div><div class="wsum-lbl">Follow-Ups</div></div>
+    </div>`;
+    const byDay = {};
+    visits.forEach(e => { (byDay[e.dateStr] = byDay[e.dateStr]||[]).push(e); });
+    Object.keys(byDay).sort().reverse().forEach(day => {
+      const dayLabel = new Date(day+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+      html += `<div class="day-group-header">${dayLabel} — ${byDay[day].length} visit${byDay[day].length!==1?'s':''}</div>`;
+      html += byDay[day].map(e => visitReportItemHTML(e)).join('');
+    });
+    el.innerHTML = html;
+  } else {
+    const uniqueAccts = new Set(visits.map(e => e.account)).size;
+    const ordersPlaced = visits.filter(e => e.orderAmt > 0).length;
+    const totalRevenue = visits.reduce((s,e) => s+(e.orderAmt||0),0);
+    const interested = visits.filter(e => ['HOT','WARM'].includes(e.status)).length;
+    const notInterested = visits.filter(e => e.status === 'COLD').length;
+    const noAnswer = visits.filter(e => !e.status || e.status === 'MONITOR').length;
+    let html = `<div class="monthly-tally">
+      <div class="tally-item"><div class="tally-val">${uniqueAccts}</div><div class="tally-lbl">Accts Visited</div></div>
+      <div class="tally-item"><div class="tally-val">${visits.length}</div><div class="tally-lbl">Total Visits</div></div>
+      <div class="tally-item"><div class="tally-val">${ordersPlaced}</div><div class="tally-lbl">Orders Placed</div></div>
+      <div class="tally-item"><div class="tally-val">$${fmtK(totalRevenue)}</div><div class="tally-lbl">Revenue</div></div>
+      <div class="tally-item"><div class="tally-val">${interested}</div><div class="tally-lbl">Interested</div></div>
+      <div class="tally-item"><div class="tally-val">${notInterested}</div><div class="tally-lbl">Not Interested</div></div>
+    </div>`;
+    html += visits.map(e => visitReportItemHTML(e)).join('');
+    el.innerHTML = html;
+  }
+}
+
+function visitReportItemHTML(e){
+  const t = new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+  return `<div class="visit-report-item">
+    <div class="vri-account">${e.account}${e.contact ? ' · '+e.contact : ''}</div>
+    <div class="vri-meta">${e.dateStr} at ${t}${e.route ? ' · '+e.route : ''}${e.stage ? ' · '+e.stage : ''} · <span style="font-weight:700;color:${e.status==='HOT'?'var(--red)':e.status==='WARM'?'var(--amber)':e.status==='MONITOR'?'var(--blue)':'var(--sub)'}">${e.status||'COLD'}</span></div>
+    ${e.objective ? `<div style="font-size:11px;color:var(--blue);margin-bottom:3px;">🎯 ${e.objective}</div>` : ''}
+    ${e.material ? `<div style="font-size:11px;color:var(--muted);margin-bottom:3px;">📦 ${e.material}</div>` : ''}
+    ${e.notes ? `<div class="vri-notes">${e.notes}</div>` : ''}
+    ${e.orderAmt > 0 ? `<div style="font-size:12px;color:var(--green);font-weight:700;margin-top:4px;">✅ Order: $${e.orderAmt.toLocaleString()}</div>` : ''}
+    ${e.quoteAmt > 0 ? `<div style="font-size:12px;color:var(--amber);font-weight:700;margin-top:2px;">💰 Quote: $${e.quoteAmt.toLocaleString()}</div>` : ''}
+    ${e.followupDate ? `<div class="vri-fu">📅 Follow-up: ${e.followupDate}</div>` : ''}
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+      <button class="btn-sm" onclick="event.stopPropagation();editEntry('${e.id}')">✏️ Edit</button>
+    </div>
+  </div>`;
+}
+
+window.exportReport = () => {
+  const today = new Date().toISOString().split('T')[0];
+  const thisWeekStart = getWeekStart();
+  const thisMonthStart = today.substring(0,7) + '-01';
+  let visits, label;
+  if(reportTab === 'daily'){ visits = entries.filter(e => e.dateStr === today && e.actType === 'Visit'); label = 'DAILY'; }
+  else if(reportTab === 'weekly'){ visits = entries.filter(e => e.dateStr >= thisWeekStart && e.actType === 'Visit'); label = 'WEEKLY'; }
+  else { visits = entries.filter(e => e.dateStr >= thisMonthStart && e.actType === 'Visit'); label = 'MONTHLY'; }
+  visits = visits.sort((a,b) => b.ts - a.ts);
+
+  const lines = [`IGM ${label} VISIT REPORT — ${today}`, '='.repeat(42)];
+  if(!visits.length){ toast('No visits to export'); return; }
+  visits.forEach(e => {
+    lines.push(`\n${e.account}${e.contact ? ' ('+e.contact+')' : ''}`);
+    lines.push(`Date: ${e.dateStr} | Status: ${e.status||'COLD'}${e.route ? ' | Route: '+e.route : ''}`);
+    if(e.objective) lines.push(`Objective: ${e.objective}`);
+    if(e.material) lines.push(`Material: ${e.material}`);
+    if(e.notes) lines.push(`Notes: ${e.notes}`);
+    if(e.orderAmt > 0) lines.push(`Order: $${e.orderAmt.toLocaleString()}`);
+    if(e.quoteAmt > 0) lines.push(`Quote: $${e.quoteAmt.toLocaleString()}`);
+    if(e.followupDate) lines.push(`Follow-Up: ${e.followupDate}`);
+    lines.push('-'.repeat(30));
+  });
+  const text = lines.join('\n');
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(() => toast('Report copied ✓')).catch(() => fallbackCopy(text));
+  } else { fallbackCopy(text); }
+};
+
+function fallbackCopy(text){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(ta); ta.focus(); ta.select();
+  try { document.execCommand('copy'); toast('Report copied ✓'); } catch(e){ toast('Select + copy manually'); }
+  document.body.removeChild(ta);
+}
+
+window.setHistFilter = (el, val) => {
+  histFilter = val;
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderHistory();
+};
 
 window.renderHistory = () => {
   const q = (document.getElementById('history-search')?.value || '').toLowerCase();
