@@ -943,18 +943,18 @@ function renderVisitReport(type){
 
   let visits;
   if(type === 'daily'){
-    visits = entries.filter(e => e.dateStr === today && e.actType === 'Visit');
+    visits = entries.filter(e => e.dateStr === today);
     titleEl.textContent = new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
   } else if(type === 'weekly'){
-    visits = entries.filter(e => e.dateStr >= thisWeekStart && e.actType === 'Visit').sort((a,b) => b.dateStr.localeCompare(a.dateStr));
+    visits = entries.filter(e => e.dateStr >= thisWeekStart).sort((a,b) => b.dateStr.localeCompare(a.dateStr));
     titleEl.textContent = 'Week of ' + thisWeekStart;
   } else {
-    visits = entries.filter(e => e.dateStr >= thisMonthStart && e.actType === 'Visit').sort((a,b) => b.dateStr.localeCompare(a.dateStr));
+    visits = entries.filter(e => e.dateStr >= thisMonthStart).sort((a,b) => b.dateStr.localeCompare(a.dateStr));
     titleEl.textContent = today.substring(0,7);
   }
 
   if(!visits.length){
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🚗</div><div class="empty-text">No visits logged for this period.</div></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No activities logged for this period.</div></div>';
     return;
   }
 
@@ -1018,9 +1018,9 @@ window.exportReport = () => {
   const thisWeekStart = getWeekStart();
   const thisMonthStart = today.substring(0,7) + '-01';
   let visits, label;
-  if(reportTab === 'daily'){ visits = entries.filter(e => e.dateStr === today && e.actType === 'Visit'); label = 'DAILY'; }
-  else if(reportTab === 'weekly'){ visits = entries.filter(e => e.dateStr >= thisWeekStart && e.actType === 'Visit'); label = 'WEEKLY'; }
-  else { visits = entries.filter(e => e.dateStr >= thisMonthStart && e.actType === 'Visit'); label = 'MONTHLY'; }
+  if(reportTab === 'daily'){ visits = entries.filter(e => e.dateStr === today); label = 'DAILY'; }
+  else if(reportTab === 'weekly'){ visits = entries.filter(e => e.dateStr >= thisWeekStart); label = 'WEEKLY'; }
+  else { visits = entries.filter(e => e.dateStr >= thisMonthStart); label = 'MONTHLY'; }
   visits = visits.sort((a,b) => b.ts - a.ts);
 
   const lines = [`IGM ${label} VISIT REPORT — ${today}`, '='.repeat(42)];
