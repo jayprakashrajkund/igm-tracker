@@ -1017,38 +1017,85 @@ window.exportReport = () => {
   const today = new Date().toISOString().split('T')[0];
   const thisWeekStart = getWeekStart();
   const thisMonthStart = today.substring(0,7) + '-01';
-  let visits, label;
-  if(reportTab === 'daily'){ visits = entries.filter(e => e.dateStr === today); label = 'DAILY'; }
-  else if(reportTab === 'weekly'){ visits = entries.filter(e => e.dateStr >= thisWeekStart); label = 'WEEKLY'; }
-  else { visits = entries.filter(e => e.dateStr >= thisMonthStart); label = 'MONTHLY'; }
-  visits = visits.sort((a,b) => b.ts - a.ts);
+  let data, label, subtitle;
+  if(reportTab === 'daily'){
+    data = entries.filter(e => e.dateStr === today).sort((a,b) => b.ts - a.ts);
+    label = 'Daily Activity Report';
+    subtitle = new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  } else if(reportTab === 'weekly'){
+    data = entries.filter(e => e.dateStr >= thisWeekStart).sort((a,b) => b.ts - a.ts);
+    label = 'Weekly Activity Report';
+    subtitle = 'Week of ' + thisWeekStart;
+  } else {
+    data = entries.filter(e => e.dateStr >= thisMonthStart).sort((a,b) => b.ts - a.ts);
+    label = 'Monthly Activity Report';
+    subtitle = today.substring(0,7);
+  }
+  if(!data.length){ toast('No activities to export'); return; }
 
-  const lines = [`IGM ${label} VISIT REPORT — ${today}`, '='.repeat(42)];
-  if(!visits.length){ toast('No visits to export'); return; }
-  visits.forEach(e => {
-    lines.push(`\n${e.account}${e.contact ? ' ('+e.contact+')' : ''}`);
-    lines.push(`Date: ${e.dateStr} | Status: ${e.status||'COLD'}${e.route ? ' | Route: '+e.route : ''}`);
-    if(e.objective) lines.push(`Objective: ${e.objective}`);
-    if(e.material) lines.push(`Material: ${e.material}`);
-    if(e.notes) lines.push(`Notes: ${e.notes}`);
-    if(e.orderAmt > 0) lines.push(`Order: $${e.orderAmt.toLocaleString()}`);
-    if(e.quoteAmt > 0) lines.push(`Quote: $${e.quoteAmt.toLocaleString()}`);
-    if(e.followupDate) lines.push(`Follow-Up: ${e.followupDate}`);
-    lines.push('-'.repeat(30));
-  });
-  const text = lines.join('\n');
-  if(navigator.clipboard){
-    navigator.clipboard.writeText(text).then(() => toast('Report copied ✓')).catch(() => fallbackCopy(text));
-  } else { fallbackCopy(text); }
+  const totalOrders = data.reduce((s,e) => s+(e.orderAmt||0),0);
+  const totalQuotes = data.reduce((s,e) => s+(e.quoteAmt||0),0);
+  const hotCount = data.filter(e => e.status==='HOT').length;
+
+  const rows = data.map(e => {
+    const t = new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    const statusColor = e.status==='HOT'?'#ef4444':e.status==='WARM'?'#f59e0b':e.status==='MONITOR'?'#3b82f6':'#555';
+    return `<tr>
+      <td><strong>${e.account||'—'}</strong>${e.contact?'<br><span class="sub">'+e.contact+'</span>':''}</td>
+      <td>${e.dateStr}<br><span class="sub">${t}</span></td>
+      <td>${e.actType||'—'}</td>
+      <td><span style="color:${statusColor};font-weight:700;">${e.status||'COLD'}</span></td>
+      <td>${e.stage||'—'}</td>
+      <td>${e.material||'—'}</td>
+      <td>${e.quoteAmt>0?'$'+e.quoteAmt.toLocaleString():'—'}</td>
+      <td>${e.orderAmt>0?'<strong style="color:#16a34a;">$'+e.orderAmt.toLocaleString()+'</strong>':'—'}</td>
+      <td>${e.followupDate||'—'}</td>
+      <td class="notes">${e.notes||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>IGM ${label}</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#111;margin:0;padding:20px;}
+  h1{font-size:20px;font-weight:800;color:#111;margin:0 0 2px;}
+  .subtitle{font-size:12px;color:#666;margin-bottom:16px;}
+  .summary{display:flex;gap:20px;margin-bottom:20px;padding:12px 16px;background:#f8f8f8;border-radius:8px;border:1px solid #e5e5e5;}
+  .sum-item{text-align:center;}
+  .sum-val{font-size:22px;font-weight:800;color:#f59e0b;}
+  .sum-lbl{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:0.5px;}
+  table{width:100%;border-collapse:collapse;font-size:10px;}
+  th{background:#111;color:#fff;padding:7px 8px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;}
+  td{padding:7px 8px;border-bottom:1px solid #e5e5e5;vertical-align:top;}
+  tr:nth-child(even) td{background:#fafafa;}
+  .notes{max-width:200px;color:#555;line-height:1.4;}
+  .sub{font-size:9px;color:#888;}
+  .footer{margin-top:20px;font-size:10px;color:#aaa;text-align:center;}
+  @media print{body{padding:10px;}@page{margin:15mm;size:A4 landscape;}}
+</style></head><body>
+<h1>IGM ${label}</h1>
+<div class="subtitle">${subtitle} &nbsp;·&nbsp; Generated ${new Date().toLocaleString()}</div>
+<div class="summary">
+  <div class="sum-item"><div class="sum-val">${data.length}</div><div class="sum-lbl">Activities</div></div>
+  <div class="sum-item"><div class="sum-val">${hotCount}</div><div class="sum-lbl">HOT Accounts</div></div>
+  <div class="sum-item"><div class="sum-val">$${totalQuotes.toLocaleString()}</div><div class="sum-lbl">Total Quoted</div></div>
+  <div class="sum-item"><div class="sum-val" style="color:#16a34a;">$${totalOrders.toLocaleString()}</div><div class="sum-lbl">Total Orders</div></div>
+</div>
+<table>
+  <thead><tr>
+    <th>Account · Contact</th><th>Date · Time</th><th>Activity</th><th>Status</th>
+    <th>Stage</th><th>Material</th><th>Quote</th><th>Order</th><th>Follow-Up</th><th>Notes</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<div class="footer">Jay's Field Tracker · IGM · Exported ${today}</div>
+<script>window.onload=()=>{window.print();}<\/script>
+</body></html>`;
+
+  const w = window.open('','_blank','width=1100,height=700');
+  if(w){ w.document.write(html); w.document.close(); }
+  else { toast('Allow pop-ups to export PDF'); }
 };
-
-function fallbackCopy(text){
-  const ta = document.createElement('textarea');
-  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
-  document.body.appendChild(ta); ta.focus(); ta.select();
-  try { document.execCommand('copy'); toast('Report copied ✓'); } catch(e){ toast('Select + copy manually'); }
-  document.body.removeChild(ta);
-}
 
 window.setHistFilter = (el, val) => {
   histFilter = val;
