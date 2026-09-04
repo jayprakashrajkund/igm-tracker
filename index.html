@@ -414,8 +414,9 @@ select option{background:#1a1a1a;}
 
   <!-- HISTORY SECTION -->
   <div id="history-section" style="display:none;">
-    <div class="search-wrap">
-      <input class="search-input" id="history-search" placeholder="🔍 Search history…" oninput="renderHistory()">
+    <div class="search-wrap" style="display:flex;gap:8px;align-items:center;">
+      <input class="search-input" id="history-search" placeholder="🔍 Search history…" oninput="renderHistory()" style="flex:1;">
+      <button class="btn-export" onclick="exportReport()" style="flex-shrink:0;">📤 Export</button>
     </div>
     <div class="filter-row" id="history-filters">
       <div class="filter-chip active" data-filter="all" onclick="setHistFilter(this,'all')">All</div>
@@ -991,10 +992,22 @@ window.exportReport = () => {
     data = entries.filter(e => e.dateStr >= thisWeekStart).sort((a,b) => b.ts - a.ts);
     label = 'Weekly Activity Report';
     subtitle = 'Week of ' + thisWeekStart;
-  } else {
+  } else if(reportTab === 'monthly'){
     data = entries.filter(e => e.dateStr >= thisMonthStart).sort((a,b) => b.ts - a.ts);
     label = 'Monthly Activity Report';
     subtitle = today.substring(0,7);
+  } else {
+    const q = (document.getElementById('history-search')?.value || '').toLowerCase();
+    data = entries.filter(e => {
+      if(histFilter !== 'all'){
+        if(['HOT','WARM','MONITOR','COLD'].includes(histFilter)){ if(e.status !== histFilter) return false; }
+        else { if(e.actType !== histFilter) return false; }
+      }
+      if(q) return (e.account||'').toLowerCase().includes(q)||(e.notes||'').toLowerCase().includes(q)||(e.actType||'').toLowerCase().includes(q)||(e.contact||'').toLowerCase().includes(q)||(e.material||'').toLowerCase().includes(q);
+      return true;
+    }).sort((a,b) => b.ts - a.ts);
+    label = 'History Report';
+    subtitle = histFilter !== 'all' ? 'Filter: ' + histFilter : 'All Activities';
   }
   if(!data.length){ toast('No activities to export'); return; }
 
