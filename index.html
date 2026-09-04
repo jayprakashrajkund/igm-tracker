@@ -257,18 +257,29 @@ select option{background:#1a1a1a;}
 
   <div class="form-row">
     <div>
-      <label>Pipeline Stage</label>
+      <label>Stage / Objective</label>
       <select id="f-stage">
         <option value="">— Select —</option>
-        <option value="01 New Lead">01 New Lead</option>
-        <option value="02 Contacted">02 Contacted</option>
-        <option value="03 Follow-Up">03 Follow-Up</option>
-        <option value="04 Qualified">04 Qualified</option>
-        <option value="05 Visit Sched.">05 Visit Sched.</option>
-        <option value="06 Quote Sent">06 Quote Sent</option>
-        <option value="07 Negotiation">07 Negotiation</option>
-        <option value="08 Closed Won">08 Won ✓</option>
-        <option value="09 Closed Lost">09 Lost ✗</option>
+        <optgroup label="Pipeline Stage">
+          <option value="01 New Lead">01 New Lead</option>
+          <option value="02 Contacted">02 Contacted</option>
+          <option value="03 Follow-Up">03 Follow-Up</option>
+          <option value="04 Qualified">04 Qualified</option>
+          <option value="05 Visit Sched.">05 Visit Sched.</option>
+          <option value="06 Quote Sent">06 Quote Sent</option>
+          <option value="07 Negotiation">07 Negotiation</option>
+          <option value="08 Closed Won">08 Won ✓</option>
+          <option value="09 Closed Lost">09 Lost ✗</option>
+        </optgroup>
+        <optgroup label="Visit Objective">
+          <option value="Reorder">Reorder</option>
+          <option value="New Material Intro">New Material Intro</option>
+          <option value="Win-Back">Win-Back</option>
+          <option value="Relationship">Relationship</option>
+          <option value="Cold Prospect">Cold Prospect</option>
+          <option value="Sample Drop">Sample Drop</option>
+          <option value="Onboarding">Onboarding</option>
+        </optgroup>
       </select>
     </div>
     <div>
@@ -286,21 +297,6 @@ select option{background:#1a1a1a;}
         <option value="Upstate NY">Upstate NY</option>
       </select>
     </div>
-  </div>
-
-  <div class="section-lbl">Visit Objective</div>
-  <div class="form-group">
-    <select id="f-objective">
-      <option value="">— Select objective —</option>
-      <option value="Reorder">Reorder</option>
-      <option value="New Material Intro">New Material Intro</option>
-      <option value="Quote">Quote</option>
-      <option value="Win-Back">Win-Back</option>
-      <option value="Relationship">Relationship</option>
-      <option value="Cold Prospect">Cold Prospect</option>
-      <option value="Sample Drop">Sample Drop</option>
-      <option value="Onboarding">Onboarding</option>
-    </select>
   </div>
 
   <div class="section-lbl">Material Discussed</div>
@@ -332,26 +328,9 @@ select option{background:#1a1a1a;}
     </datalist>
   </div>
 
-  <div class="form-row">
-    <div>
-      <label>Quote $ Value</label>
-      <input type="number" id="f-quote" placeholder="0.00" inputmode="decimal">
-    </div>
-    <div>
-      <label>Order $ Placed</label>
-      <input type="number" id="f-order" placeholder="0.00" inputmode="decimal">
-    </div>
-  </div>
-
-  <div class="form-row">
-    <div>
-      <label>Follow-Up Date</label>
-      <input type="date" id="f-followup">
-    </div>
-    <div>
-      <label>Competitor Intel</label>
-      <input type="text" id="f-competitor" placeholder="e.g. Reliance, OM Surface…">
-    </div>
+  <div class="form-group">
+    <label>Follow-Up Date</label>
+    <input type="date" id="f-followup">
   </div>
 
   <div class="toggle-row">
@@ -598,12 +577,8 @@ window.logActivity = async () => {
     status: getChip('status') || 'COLD',
     stage: document.getElementById('f-stage').value,
     route: document.getElementById('f-route').value,
-    objective: document.getElementById('f-objective').value,
     material: document.getElementById('f-material').value.trim(),
-    quoteAmt: parseFloat(document.getElementById('f-quote').value) || 0,
-    orderAmt: parseFloat(document.getElementById('f-order').value) || 0,
     followupDate: document.getElementById('f-followup').value,
-    competitor: document.getElementById('f-competitor').value.trim(),
     winback: document.getElementById('toggle-winback').classList.contains('on'),
     notes: document.getElementById('f-notes').value.trim(),
     ts: Date.now(),
@@ -628,8 +603,8 @@ window.logActivity = async () => {
 };
 
 function clearForm(){
-  ['f-account','f-contact','f-material','f-quote','f-order','f-followup','f-competitor','f-notes'].forEach(id => document.getElementById(id).value = '');
-  ['f-stage','f-route','f-objective'].forEach(id => document.getElementById(id).value = '');
+  ['f-account','f-contact','f-material','f-followup','f-notes'].forEach(id => document.getElementById(id).value = '');
+  ['f-stage','f-route'].forEach(id => document.getElementById(id).value = '');
   document.querySelectorAll('#chips-act .chip, #chips-status .chip').forEach(c => c.className = 'chip');
   document.getElementById('toggle-winback').classList.remove('on');
   document.getElementById('f-account').focus();
@@ -659,14 +634,10 @@ window.editEntry = (id) => {
   document.getElementById('f-account').value = e.account || '';
   document.getElementById('f-contact').value = e.contact || '';
   document.getElementById('f-material').value = e.material || '';
-  document.getElementById('f-quote').value = e.quoteAmt || '';
-  document.getElementById('f-order').value = e.orderAmt || '';
   document.getElementById('f-followup').value = e.followupDate || '';
-  document.getElementById('f-competitor').value = e.competitor || '';
   document.getElementById('f-notes').value = e.notes || '';
   document.getElementById('f-stage').value = e.stage || '';
   document.getElementById('f-route').value = e.route || '';
-  document.getElementById('f-objective').value = e.objective || '';
   if(e.winback) document.getElementById('toggle-winback').classList.add('on');
   else document.getElementById('toggle-winback').classList.remove('on');
 
