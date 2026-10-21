@@ -204,7 +204,13 @@ select option{background:#1a1a1a;}
 </style>
 </head>
 <body>
-<div id="app">
+<div id="auth-panel" style="padding:32px 16px;max-width:480px;margin:auto;">
+  <h1>IGM Tracker</h1>
+  <p id="auth-message" role="status" style="margin:16px 0;">Checking sign-in…</p>
+  <button class="btn-sm" id="sign-in" onclick="login()" disabled>Sign in with Google</button>
+  <button class="btn-sm" onclick="logout()">Sign out / switch account</button>
+</div>
+<div id="app" style="display:none;">
 
 <!-- HEADER -->
 <div id="header">
@@ -216,6 +222,7 @@ select option{background:#1a1a1a;}
     </div>
     <div class="today-badge" id="today-count">0 Today</div>
     <div class="sync-dot" id="sync-dot"></div>
+    <button class="btn-sm" onclick="logout()">Sign out</button>
   </div>
 </div>
 
@@ -418,6 +425,7 @@ select option{background:#1a1a1a;}
       <strong>Protect your activity history</strong>
       <p style="margin:8px 0;color:var(--muted);">Download every activity and its original fields, independent of report filters. Keep the file private. Checking a backup never changes saved records.</p>
       <button class="btn-sm" id="backup-button" onclick="downloadBackup()">Download activity backup</button>
+      <button class="btn-sm" id="full-backup-button" onclick="downloadFullBackup()">Back up all three collections</button>
       <label style="margin-top:12px;" for="backup-check">Check a saved backup</label>
       <input id="backup-check" type="file" accept="application/json,.json" onchange="checkBackup(this.files[0])">
       <p id="backup-status" role="status" style="margin-top:10px;white-space:pre-wrap;"></p>
@@ -471,6 +479,7 @@ select option{background:#1a1a1a;}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -484,6 +493,26 @@ const firebaseConfig = {
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
+const OWNER_EMAIL = 'jayprakashrajkund@gmail.com';
+const isOwner = user => !!user && user.emailVerified && user.email === OWNER_EMAIL && user.providerData.some(p => p.providerId === 'google.com');
+let unsubscribeActivities = null;
+let saveInProgress = false;
+window.login = async () => {
+  const button = document.getElementById('sign-in');
+  button.disabled = true;
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({prompt:'select_account'});
+    await signInWithPopup(auth, provider);
+  } catch(error){
+    document.getElementById('auth-message').textContent = error.code === 'auth/popup-blocked'
+      ? 'Allow pop-ups for this tracker, then tap Sign in again.' : `Sign-in failed (${error.code || 'connection error'}). Please try again.`;
+  } finally { button.disabled = false; }
+};
+window.logout = async () => {
+  try { await signOut(auth); } catch { document.getElementById('auth-message').textContent = 'Sign-out failed. Please retry.'; }
+};
 
 // ── ACCOUNTS ──
 const ACCOUNTS = [
@@ -527,13 +556,34 @@ let reportTab = 'daily';
 
 // ── FIRESTORE REAL-TIME LISTENER ──
 const q = query(collection(db, "activities"), orderBy("ts", "desc"));
-onSnapshot(q, (snap) => {
-  entries = snap.docs.map(d => ({id: d.id, ...d.data()}));
-  document.getElementById('sync-dot').className = 'sync-dot live';
-  renderAll();
-}, (err) => {
-  console.error(err);
+onAuthStateChanged(auth, user => {
+  if(unsubscribeActivities) unsubscribeActivities();
+  unsubscribeActivities = null;
+  entries = [];
+  editId = null;
+  clearForm();
+  document.getElementById('edit-banner').classList.remove('show');
+  document.getElementById('log-btn').textContent = '⚡ LOG ACTIVITY';
   document.getElementById('sync-dot').className = 'sync-dot';
+  for(const id of ['today-entries','history-list','visit-report-content','dash-overdue','fu-overdue-section','fu-upcoming','top-accounts','act-breakdown','route-report','monthly-summary','pipe-grid','kpi-bars']) document.getElementById(id).replaceChildren();
+  document.getElementById('backup-check').value = '';
+  document.getElementById('backup-status').textContent = '';
+  const allowed = isOwner(user);
+  document.getElementById('app').style.display = allowed ? 'flex' : 'none';
+  document.getElementById('auth-panel').style.display = allowed ? 'none' : 'block';
+  document.getElementById('sign-in').disabled = false;
+  document.getElementById('auth-message').textContent = user ? 'This Google account is not authorized. Switch to your tracker owner account.' : 'Sign in with your authorized Google account to access your tracker.';
+  if(!allowed) return;
+  renderAll();
+  unsubscribeActivities = onSnapshot(q, snap => {
+    if(auth.currentUser?.uid !== user.uid) return;
+    entries = snap.docs.map(d => ({...d.data(), id:d.id}));
+    document.getElementById('sync-dot').className = 'sync-dot live';
+    renderAll();
+  }, error => {
+    document.getElementById('sync-dot').className = 'sync-dot';
+    toast('Unable to sync. Check your access and connection.');
+  });
 });
 
 // ── POPULATE ACCOUNT DATALIST ──
@@ -574,8 +624,10 @@ const getChip = (group) => document.querySelector(`#chips-${group} .chip[class*=
 
 // ── LOG ACTIVITY ──
 window.logActivity = async () => {
+  if(!isOwner(auth.currentUser)){ toast('Sign in with your authorized account'); return; }
+  if(saveInProgress) return;
   const acct = document.getElementById('f-account').value.trim();
-  const actType = getChip('act');
+  const actType = getChip('act') || (editId ? entries.find(e=>e.id === editId)?.actType : '');
   if(!acct){ toast('Account name required'); return; }
   if(!actType){ toast('Select an activity type'); return; }
 
@@ -596,6 +648,8 @@ window.logActivity = async () => {
   if(!editId){ entry.ts = Date.now(); entry.dateStr = localDate(); }
 
   showSaving(true);
+  saveInProgress = true;
+  document.getElementById('log-btn').disabled = true;
   try {
     if(editId) {
       await updateDoc(doc(db,"activities",editId), entry);
@@ -610,6 +664,8 @@ window.logActivity = async () => {
     clearForm();
   } catch(e){ toast('Save failed — check connection'); console.error(e); }
   showSaving(false);
+  saveInProgress = false;
+  document.getElementById('log-btn').disabled = false;
 };
 
 function clearForm(){
@@ -692,6 +748,7 @@ function updateTodayCount(){
 
 // ── ENTRY HTML ──
 function entryHTML(e){
+  e = displayRecord(e);
   const t = new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   let $$ = '';
   if(e.quoteAmt > 0 || e.orderAmt > 0){
@@ -720,8 +777,8 @@ function entryHTML(e){
     ${e.notes ? `<div class="entry-notes">${e.notes}</div>` : ''}
     ${e.followupDate ? `<div style="font-size:11px;color:${fuColor(e.followupDate)};margin-top:4px;">📅 Follow-up: ${e.followupDate}</div>` : ''}
     <div class="entry-actions">
-      <button class="btn-sm" onclick="editEntry('${e.id}')">✏️ Edit</button>
-      <button class="btn-sm danger" onclick="deleteEntry('${e.id}')">🗑 Delete</button>
+      <button class="btn-sm" data-id="${e.id}" onclick="editEntry(this.dataset.id)">✏️ Edit</button>
+      <button class="btn-sm danger" data-id="${e.id}" onclick="deleteEntry(this.dataset.id)">🗑 Delete</button>
     </div>
   </div>`;
 }
@@ -786,7 +843,7 @@ function renderDash(){
   } else {
     odEl.innerHTML = `<div class="fu-overdue" style="margin-bottom:12px;"><div class="fu-overdue-title">⚠️ ${overdue.length} Overdue</div>${overdue.slice(0,5).map(e => `
       <div class="fu-item">
-        <div><div class="fu-acct">${e.account}</div><div class="fu-detail">${e.actType} · ${e.followupDate}</div></div>
+        <div><div class="fu-acct">${escapeHTML(e.account)}</div><div class="fu-detail">${escapeHTML(e.actType)} · ${escapeHTML(e.followupDate)}</div></div>
         <div class="fu-day overdue">OVERDUE</div>
       </div>`).join('')}</div>`;
   }
@@ -804,7 +861,7 @@ function renderDash(){
   const sortedM = Object.keys(months).sort().reverse().slice(0,3);
   document.getElementById('monthly-summary').innerHTML = sortedM.map(m => `
     <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
-      <div style="color:var(--amber);font-weight:700;font-size:13px;margin-bottom:8px;">${m}</div>
+      <div style="color:var(--amber);font-weight:700;font-size:13px;margin-bottom:8px;">${escapeHTML(m)}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;">
         <div><div style="font-size:18px;font-weight:800;">${months[m].count}</div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Activities</div></div>
         <div><div style="font-size:18px;font-weight:800;">$${fmtK(months[m].quotes)}</div><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;">Quoted</div></div>
@@ -836,13 +893,14 @@ function renderFollowUps(){
 }
 
 function fuItemHTML(e, today){
+  e = displayRecord(e);
   const diff = Math.round((new Date(e.followupDate) - new Date(today))/(1000*60*60*24));
   let cls = 'later', lbl = e.followupDate;
   if(diff < 0){ cls='overdue'; lbl='OVERDUE'; }
   else if(diff === 0){ cls='today'; lbl='TODAY'; }
   else if(diff === 1){ cls='soon'; lbl='TOMORROW'; }
   else if(diff <= 3){ cls='soon'; lbl=diff+'d'; }
-  return `<div class="fu-item" onclick="editEntry('${e.id}')">
+  return `<div class="fu-item" data-id="${e.id}" onclick="editEntry(this.dataset.id)">
     <div style="flex:1;min-width:0;">
       <div class="fu-acct">${e.account}${e.contact ? ' · '+e.contact : ''}</div>
       <div class="fu-detail">${e.actType}${e.stage ? ' · '+e.stage : ''}${e.route ? ' · '+e.route : ''}</div>
@@ -881,7 +939,7 @@ function renderHistoryStats(){
   const maxA = topAccts[0]?.[1] || 1;
   document.getElementById('top-accounts').innerHTML = topAccts.map(([a,c]) => `
     <div class="report-bar-item">
-      <div class="report-bar-label">${a}</div>
+      <div class="report-bar-label">${escapeHTML(a)}</div>
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${Math.round((c/maxA)*100)}%"></div></div>
       <div class="report-bar-count">${c}</div>
     </div>`).join('') || '<div style="color:var(--sub);font-size:13px;">No data yet.</div>';
@@ -892,7 +950,7 @@ function renderHistoryStats(){
   const maxAct = topActs[0]?.[1] || 1;
   document.getElementById('act-breakdown').innerHTML = topActs.map(([a,c]) => `
     <div class="report-bar-item">
-      <div class="report-bar-label">${a}</div>
+      <div class="report-bar-label">${escapeHTML(a)}</div>
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${Math.round((c/maxAct)*100)}%"></div></div>
       <div class="report-bar-count">${c}</div>
     </div>`).join('') || '<div style="color:var(--sub);font-size:13px;">No data yet.</div>';
@@ -903,7 +961,7 @@ function renderHistoryStats(){
   const maxR = topRoutes[0]?.[1] || 1;
   document.getElementById('route-report').innerHTML = topRoutes.length ? topRoutes.map(([r,c]) => `
     <div class="report-bar-item">
-      <div class="report-bar-label">${r}</div>
+      <div class="report-bar-label">${escapeHTML(r)}</div>
       <div class="report-bar-track"><div class="report-bar-fill" style="width:${Math.round((c/maxR)*100)}%"></div></div>
       <div class="report-bar-count">${c}</div>
     </div>`).join('') : '<div style="color:var(--sub);font-size:13px;">Log route clusters to see data.</div>';
@@ -972,6 +1030,7 @@ function renderVisitReport(type){
 }
 
 function visitReportItemHTML(e){
+  e = displayRecord(e);
   const t = new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
   return `<div class="visit-report-item">
     <div class="vri-account">${e.account}${e.contact ? ' · '+e.contact : ''}</div>
@@ -983,7 +1042,7 @@ function visitReportItemHTML(e){
     ${e.quoteAmt > 0 ? `<div style="font-size:12px;color:var(--amber);font-weight:700;margin-top:2px;">💰 Quote: $${e.quoteAmt.toLocaleString()}</div>` : ''}
     ${e.followupDate ? `<div class="vri-fu">📅 Follow-up: ${e.followupDate}</div>` : ''}
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
-      <button class="btn-sm" onclick="event.stopPropagation();editEntry('${e.id}')">✏️ Edit</button>
+      <button class="btn-sm" data-id="${e.id}" onclick="event.stopPropagation();editEntry(this.dataset.id)">✏️ Edit</button>
     </div>
   </div>`;
 }
@@ -1025,6 +1084,7 @@ window.exportReport = () => {
   const hotCount = data.filter(e => e.status==='HOT').length;
 
   const rows = data.map(e => {
+    e = displayRecord(e);
     const t = new Date(e.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
     const statusColor = e.status==='HOT'?'#ef4444':e.status==='WARM'?'#f59e0b':e.status==='MONITOR'?'#3b82f6':'#555';
     return `<tr>
@@ -1114,20 +1174,31 @@ window.renderHistory = () => {
 };
 
 // ── HELPERS ──
+function escapeHTML(value){
+  return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+function displayRecord(record){
+  return Object.fromEntries(Object.entries(record).map(([key,value])=>[key,typeof value === 'string' ? escapeHTML(value) : value]));
+}
 function localDate(d = new Date()){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 // Use Firestore's typed wire format to preserve timestamps, integers, maps,
 // references and unknown legacy fields without converting their types.
-async function readBackupDocuments(){
-  const root = `projects/${firebaseConfig.projectId}/databases/(default)/documents/activities`;
+async function readBackupDocuments(collectionName = 'activities'){
+  const user = auth.currentUser;
+  if(!isOwner(user)) throw new Error('Sign in with your authorized account before backing up.');
+  if(!['activities','igm_entries','igm_custom_clients'].includes(collectionName)) throw new Error('Unknown collection.');
+  const root = `projects/${firebaseConfig.projectId}/databases/(default)/documents/${collectionName}`;
   const documents = [];
   let pageToken = '';
   do {
     const params = new URLSearchParams({key: firebaseConfig.apiKey, pageSize:'1000'});
     if(pageToken) params.set('pageToken', pageToken);
-    const response = await fetch(`https://firestore.googleapis.com/v1/${root}?${params}`);
+    const token = await user.getIdToken();
+    const response = await fetch(`https://firestore.googleapis.com/v1/${root}?${params}`, {headers:{Authorization:`Bearer ${token}`}});
+    if(auth.currentUser?.uid !== user.uid) throw new Error('Account changed. Please retry after signing in.');
     if(!response.ok) throw new Error(`Database read failed (${response.status}). No backup was created.`);
     const page = await response.json();
     documents.push(...(page.documents || []));
@@ -1157,11 +1228,33 @@ window.downloadBackup = async () => {
   finally { button.disabled = false; }
 };
 
-function validateBackup(backup){
+window.downloadFullBackup = async () => {
+  const button = document.getElementById('full-backup-button');
+  const status = document.getElementById('backup-status');
+  button.disabled = true;
+  status.textContent = 'Reading all three collections. Avoid edits on other devices until finished.';
+  try {
+    const collections = {};
+    for(const name of ['activities','igm_entries','igm_custom_clients']) {
+      const documents = await readBackupDocuments(name);
+      collections[name] = {documentCount:documents.length, documents};
+    }
+    const backup = {format:'igm-all-firestore-v1',projectId:firebaseConfig.projectId,exportedAt:new Date().toISOString(),collections};
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));
+    const link = document.createElement('a');
+    link.href = url; link.download = `igm-all-${localDate()}-${Date.now()}.json`;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    status.textContent = 'Download requested: ' + Object.entries(collections).map(([name,value])=>`${name}: ${value.documentCount}`).join('; ') + '. Save the file and check it below. Rules and authentication settings are maintained separately.';
+  } catch(error){ status.textContent = error.message; }
+  finally { button.disabled = false; }
+};
+
+function validateBackup(backup, collectionName = 'activities'){
   if(backup?.format !== 'igm-activities-firestore-v1' || backup.projectId !== firebaseConfig.projectId ||
      !Array.isArray(backup.documents) || backup.documentCount !== backup.documents.length)
     throw new Error('This is not a matching IGM activity backup, or its record count is invalid.');
-  const prefix = `projects/${firebaseConfig.projectId}/databases/(default)/documents/activities/`;
+  const prefix = `projects/${firebaseConfig.projectId}/databases/(default)/documents/${collectionName}/`;
   const ids = new Set();
   for(const record of backup.documents){
     if(typeof record.name !== 'string' || !record.name.startsWith(prefix) ||
@@ -1184,8 +1277,19 @@ window.checkBackup = async file => {
   const status = document.getElementById('backup-status');
   status.textContent = 'Checking backup and comparing saved records…';
   try {
-    const saved = validateBackup(JSON.parse(await file.text()));
-    const current = await readBackupDocuments();
+    const backup = JSON.parse(await file.text());
+    let saved, current;
+    if(backup.format === 'igm-all-firestore-v1'){
+      if(backup.projectId !== firebaseConfig.projectId || !backup.collections || Object.keys(backup.collections).sort().join(',') !== 'activities,igm_custom_clients,igm_entries') throw new Error('Invalid full backup.');
+      saved = []; current = [];
+      for(const name of ['activities','igm_entries','igm_custom_clients']) {
+        saved.push(...validateBackup({...backup.collections[name],format:'igm-activities-firestore-v1',projectId:backup.projectId},name));
+        current.push(...await readBackupDocuments(name));
+      }
+    } else {
+      saved = validateBackup(backup);
+      current = await readBackupDocuments();
+    }
     const live = new Map(current.map(d=>[d.name,d]));
     let missing=0, changed=0, same=0;
     for(const record of saved){
@@ -1195,7 +1299,7 @@ window.checkBackup = async file => {
       else changed++;
       live.delete(record.name);
     }
-    status.textContent = `Backup checked: ${saved.length} activities.\nUnchanged: ${same}; missing from database: ${missing}; different: ${changed}; newer/unbacked-up records: ${live.size}.\nPreview only. Nothing was restored or overwritten. A separate restore test is still required before importing.`;
+    status.textContent = `Backup checked: ${saved.length} records.\nUnchanged: ${same}; missing from database: ${missing}; different: ${changed}; newer/unbacked-up records: ${live.size}.\nPreview only. Nothing was restored or overwritten. A separate restore test is still required before importing.`;
   } catch(error){ status.textContent = `Check failed: ${error.message}`; }
 };
 
