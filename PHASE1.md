@@ -70,6 +70,11 @@ sync passed. Browser emulator logging and follow-up editing kept one record;
 literal HTML-like notes displayed as text; sign-out hid the tracker.
 
 Real Google owner sign-in and authenticated full backup passed in local preview.
+The security changes are deployed. Live owner sign-in and a full backup passed;
+all 164 records match the pre-deployment backup, including system metadata.
+Signed-out production REST reads return HTTP 403 for all three collections.
+The deployed HTML was checked against the tested source. Unauthorized identities
+were tested in the emulator; no unauthorized production write was attempted.
 Physical iPhone validation still requires the owner to perform the checks below.
 
 ## iPhone check after deployment
