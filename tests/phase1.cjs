@@ -21,6 +21,7 @@ async function main(){
   const collections = ['activities','igm_entries','igm_custom_clients'];
   const reports=[];
   try {
+    await env.clearFirestore(); // Only the hard-coded local demo project.
     for(const name of collections){
       const backup=JSON.parse(fs.readFileSync(path.join(process.env.IGM_BACKUP_DIR,name+'.json'),'utf8').replace(/^\uFEFF/,''));
       assert.equal(backup.documentCount,backup.documents.length);

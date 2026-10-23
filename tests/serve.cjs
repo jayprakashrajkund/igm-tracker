@@ -2,6 +2,9 @@
 const http=require('node:http'),fs=require('node:fs');
 const file=require('node:path').resolve('index.html');
 http.createServer((req,res)=>{
+  if(['/directory.mjs','/directory-model.mjs'].includes(req.url)){
+    res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});return res.end(fs.readFileSync(require('node:path').resolve(req.url.slice(1))));
+  }
   if(!['/','/emulator'].includes(req.url)){res.writeHead(404);return res.end();}
   let html=fs.readFileSync(file,'utf8');
   if(req.url==='/emulator'){
@@ -14,4 +17,4 @@ http.createServer((req,res)=>{
       .replaceAll('https://firestore.googleapis.com/v1/','http://127.0.0.1:8085/v1/');
   }
   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(html);
-}).listen(8766,'127.0.0.1',()=>console.log('Local test app: http://localhost:8766/ ; isolated UI: http://localhost:8766/emulator'));
+}).listen(8767,'127.0.0.1',()=>console.log('Local test app: http://localhost:8767/ ; isolated UI: http://localhost:8767/emulator'));

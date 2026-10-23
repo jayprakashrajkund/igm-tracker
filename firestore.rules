@@ -10,6 +10,15 @@ service cloud.firestore {
     match /activities/{document} {
       allow read, write: if isOwner();
     }
+    match /accounts/{accountId} {
+      allow read, create, update: if isOwner();
+    }
+    match /directoryImports/{importId} {
+      allow read, create: if isOwner();
+    }
+    match /activityLinks/{activityId} {
+      allow read, create, update: if isOwner();
+    }
     // Preserve the legacy collections without permitting changes from the app.
     match /igm_entries/{document} {
       allow read: if isOwner();

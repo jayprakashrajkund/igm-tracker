@@ -201,6 +201,9 @@ select option{background:#1a1a1a;}
 .fu-item{cursor:pointer;}
 .fu-item:active{background:rgba(255,255,255,0.03);}
 .fu-edit-hint{font-size:10px;color:var(--amber);margin-top:3px;font-weight:600;}
+.directory-account{display:block;width:calc(100% - 32px);text-align:left;color:var(--text);cursor:pointer;}
+#tab-customers p{margin:10px 0;line-height:1.5;}#tab-customers small{color:var(--muted);}
+.directory-warning{color:var(--amber);}.directory-note{white-space:pre-wrap;overflow-wrap:anywhere;}
 </style>
 </head>
 <body>
@@ -425,7 +428,7 @@ select option{background:#1a1a1a;}
       <strong>Protect your activity history</strong>
       <p style="margin:8px 0;color:var(--muted);">Download every activity and its original fields, independent of report filters. Keep the file private. Checking a backup never changes saved records.</p>
       <button class="btn-sm" id="backup-button" onclick="downloadBackup()">Download activity backup</button>
-      <button class="btn-sm" id="full-backup-button" onclick="downloadFullBackup()">Back up all three collections</button>
+      <button class="btn-sm" id="full-backup-button" onclick="downloadFullBackup()">Back up all tracker data</button>
       <label style="margin-top:12px;" for="backup-check">Check a saved backup</label>
       <input id="backup-check" type="file" accept="application/json,.json" onchange="checkBackup(this.files[0])">
       <p id="backup-status" role="status" style="margin-top:10px;white-space:pre-wrap;"></p>
@@ -455,10 +458,12 @@ select option{background:#1a1a1a;}
 
 </div>
 
+<div class="tab-body" id="tab-customers"></div>
 </div><!-- end content -->
 
 <!-- BOTTOM NAV -->
 <div id="nav">
+  <button class="nav-btn" data-tab="customers" onclick="switchTab('customers',this)"><span class="ni">👥</span><span class="nl">Customers</span></button>
   <button class="nav-btn active" data-tab="log" onclick="switchTab('log',this)">
     <span class="ni">✏️</span><span class="nl">Log</span>
   </button>
@@ -478,6 +483,8 @@ select option{background:#1a1a1a;}
 <div id="toast"></div>
 
 <script type="module">
+import { createDirectory } from './directory.mjs';
+import { DIRECTORY_COLLECTIONS } from './directory-model.mjs';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
@@ -553,10 +560,21 @@ let entries = [];
 let editId = null;
 let histFilter = 'all';
 let reportTab = 'daily';
+let activityAccountId = null;
+const BACKUP_COLLECTIONS = ['activities','igm_entries','igm_custom_clients',...DIRECTORY_COLLECTIONS];
+const directory = createDirectory({db,auth,isOwner,getEntries:()=>entries,entryHTML,
+  editEntry:id=>window.editEntry(id),startActivity:account=>{
+    window.cancelEdit();activityAccountId=account.id;
+    document.getElementById('f-account').value=account.name;
+    document.getElementById('f-account').readOnly=true;
+    switchTab('log',document.querySelector('[data-tab="log"]'));
+    toast('New activity for '+account.id);
+  }});
 
 // ── FIRESTORE REAL-TIME LISTENER ──
 const q = query(collection(db, "activities"), orderBy("ts", "desc"));
 onAuthStateChanged(auth, user => {
+  directory.start(user);
   if(unsubscribeActivities) unsubscribeActivities();
   unsubscribeActivities = null;
   entries = [];
@@ -603,6 +621,7 @@ window.switchTab = (tab, btn) => {
   if(tab === 'dash') renderDash();
   if(tab === 'fu') renderFollowUps();
   if(tab === 'reports') renderReports();
+  if(tab === 'customers') directory.render();
 };
 
 // ── CHIPS ──
@@ -645,7 +664,7 @@ window.logActivity = async () => {
     updatedAt: Date.now()
   };
   // Only new records receive an activity date. Updates retain historical fields.
-  if(!editId){ entry.ts = Date.now(); entry.dateStr = localDate(); }
+  if(!editId){ entry.ts = Date.now(); entry.dateStr = localDate(); if(activityAccountId) entry.accountId=activityAccountId; }
 
   showSaving(true);
   saveInProgress = true;
@@ -669,6 +688,8 @@ window.logActivity = async () => {
 };
 
 function clearForm(){
+  activityAccountId=null;
+  document.getElementById('f-account').readOnly=false;
   ['f-account','f-contact','f-material','f-followup','f-notes'].forEach(id => document.getElementById(id).value = '');
   ['f-stage','f-route'].forEach(id => document.getElementById(id).value = '');
   document.querySelectorAll('#chips-act .chip, #chips-status .chip').forEach(c => c.className = 'chip');
@@ -721,6 +742,7 @@ window.editEntry = (id) => {
 
 // ── RENDER ALL ──
 function renderAll(){
+  directory.render();
   renderTodayEntries();
   updateTodayCount();
   if(document.getElementById('tab-dash').classList.contains('active')) renderDash();
@@ -1189,7 +1211,7 @@ function localDate(d = new Date()){
 async function readBackupDocuments(collectionName = 'activities'){
   const user = auth.currentUser;
   if(!isOwner(user)) throw new Error('Sign in with your authorized account before backing up.');
-  if(!['activities','igm_entries','igm_custom_clients'].includes(collectionName)) throw new Error('Unknown collection.');
+  if(!BACKUP_COLLECTIONS.includes(collectionName)) throw new Error('Unknown collection.');
   const root = `projects/${firebaseConfig.projectId}/databases/(default)/documents/${collectionName}`;
   const documents = [];
   let pageToken = '';
@@ -1232,10 +1254,10 @@ window.downloadFullBackup = async () => {
   const button = document.getElementById('full-backup-button');
   const status = document.getElementById('backup-status');
   button.disabled = true;
-  status.textContent = 'Reading all three collections. Avoid edits on other devices until finished.';
+  status.textContent = 'Reading all tracker and directory collections. Avoid edits on other devices until finished.';
   try {
     const collections = {};
-    for(const name of ['activities','igm_entries','igm_custom_clients']) {
+    for(const name of BACKUP_COLLECTIONS) {
       const documents = await readBackupDocuments(name);
       collections[name] = {documentCount:documents.length, documents};
     }
@@ -1280,9 +1302,9 @@ window.checkBackup = async file => {
     const backup = JSON.parse(await file.text());
     let saved, current;
     if(backup.format === 'igm-all-firestore-v1'){
-      if(backup.projectId !== firebaseConfig.projectId || !backup.collections || Object.keys(backup.collections).sort().join(',') !== 'activities,igm_custom_clients,igm_entries') throw new Error('Invalid full backup.');
+      if(backup.projectId !== firebaseConfig.projectId || !backup.collections || !['activities','igm_entries','igm_custom_clients'].every(name=>Object.hasOwn(backup.collections,name)) || Object.keys(backup.collections).some(name=>!BACKUP_COLLECTIONS.includes(name))) throw new Error('Invalid full backup.');
       saved = []; current = [];
-      for(const name of ['activities','igm_entries','igm_custom_clients']) {
+      for(const name of Object.keys(backup.collections)) {
         saved.push(...validateBackup({...backup.collections[name],format:'igm-activities-firestore-v1',projectId:backup.projectId},name));
         current.push(...await readBackupDocuments(name));
       }
