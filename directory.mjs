@@ -1,5 +1,5 @@
 import {collection,doc,onSnapshot,runTransaction} from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
-import {candidateAccounts,validateDirectoryImport,placeQuery,googleRouteUrl,appleStopUrl} from './directory-model.mjs';
+import {candidateAccounts,validateDirectoryImport,placeQuery,googleRouteUrl,appleStopUrl,orderFromTrip} from './directory-model.mjs';
 
 export function createDirectory({db,auth,isOwner,getEntries,entryHTML,editEntry,startActivity}){
   const root=document.getElementById('tab-customers');
@@ -13,11 +13,53 @@ export function createDirectory({db,auth,isOwner,getEntries,entryHTML,editEntry,
   const loadRoute=()=>{try{const v=JSON.parse(localStorage.getItem(ROUTE_KEY)||'[]');return Array.isArray(v)?v.filter(x=>typeof x==='string'):[];}catch(e){return [];}};
   let route=loadRoute();
   const saveRoute=()=>{try{localStorage.setItem(ROUTE_KEY,JSON.stringify(route));}catch(e){}};
+  const GEO_KEY='igmGeoCache';
+  const loadGeo=()=>{try{return JSON.parse(localStorage.getItem(GEO_KEY)||'{}')||{};}catch(e){return {};}};
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  async function geocode(query){
+    const cache=loadGeo();if(cache[query])return cache[query];
+    await sleep(1100);
+    const res=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q='+encodeURIComponent(query));
+    if(!res.ok)return null;const hit=(await res.json())[0];if(!hit)return null;
+    const point=[Number(hit.lon),Number(hit.lat)];cache[query]=point;
+    try{localStorage.setItem(GEO_KEY,JSON.stringify(cache));}catch(e){}
+    return point;
+  }
+  let bestBusy=false;
+  async function bestOrder(){
+    if(bestBusy)return;const status=t=>{el('directory-status').textContent=t;};
+    const stops=route.map(id=>accounts.find(x=>x.id===id)).filter(Boolean);
+    if(stops.length<2){status('Add at least two stops first.');return;}
+    bestBusy=true;
+    try{
+      status('Finding your location…');
+      let origin=null;
+      try{origin=await new Promise((ok,no)=>navigator.geolocation.getCurrentPosition(p=>ok([p.coords.longitude,p.coords.latitude]),no,{timeout:8000,maximumAge:60000}));}catch(e){}
+      const pts=[];let approx=0;
+      for(let i=0;i<stops.length;i++){
+        const s=stops[i],l=(s.locations||[])[0]||{};
+        status(`Locating stop ${i+1} of ${stops.length}…`);
+        let p=await geocode(placeQuery(s));
+        if(!p&&!l.address){p=await geocode([l.city||s.source?.['Roster city'],l.state||s.source?.['Roster state']].filter(Boolean).join(', '));if(p)approx++;}
+        if(!p){status(`Could not locate ${s.name}. Add its street address and try again. Order unchanged.`);return;}
+        pts.push(p);
+      }
+      const coords=(origin?[origin]:[]).concat(pts);
+      status('Working out the shortest drive…');
+      const res=await fetch('https://router.project-osrm.org/trip/v1/driving/'+coords.map(c=>c.join(',')).join(';')+'?source=first&roundtrip=false&overview=false');
+      const data=await res.json();
+      if(data.code!=='Ok'||!Array.isArray(data.waypoints)||data.waypoints.length!==coords.length)throw Error('routing service said '+(data.code||res.status));
+      const shift=origin?1:0,order=orderFromTrip(data.waypoints).filter(i=>i>=shift).map(i=>i-shift);
+      route=order.map(i=>stops[i].id);saveRoute();render();
+      status(`Reordered ${stops.length} stops${origin?' from your current location':' starting at your first stop'}.${approx?` ${approx} stop${approx>1?'s were':' was'} placed by city only, so check ${approx>1?'their':'its'} position.`:''}`);
+    }catch(error){status('Best order failed: '+error.message+'. Order unchanged.');}
+    finally{bestBusy=false;}
+  }
   function routeHTML(){
     const stops=route.map(id=>accounts.find(x=>x.id===id)).filter(Boolean);
     if(!stops.length)return '';
     const rows=stops.map((s,i)=>`<div style="margin:10px 0"><strong>${i+1}. ${esc(s.name)}</strong><br><small>${esc(placeQuery(s))}${(s.locations||[])[0]?.address?'':' (no street address, searching by name)'}</small><br><button class="btn-sm" data-rup="${esc(s.id)}">Up</button> <button class="btn-sm" data-rdown="${esc(s.id)}">Down</button> <a class="btn-sm" href="${esc(appleStopUrl(s))}" target="_blank" rel="noopener">Navigate</a> <button class="btn-sm" data-rlog="${esc(s.id)}">Log visit</button> <button class="btn-sm" data-rremove="${esc(s.id)}">Remove</button></div>`).join('');
-    return `<div class="card"><h3>Today's route (${stops.length})</h3>${rows}<a class="btn-sm" href="${esc(googleRouteUrl(stops))}" target="_blank" rel="noopener">Open full route in Google Maps</a> <button class="btn-sm" data-action="route-clear">Clear route</button>${stops.length>10?'<p class="directory-warning">Google Maps takes 10 stops, so only the first 10 are sent. Run the rest as a second trip.</p>':''}</div>`;
+    return `<div class="card"><h3>Today's route (${stops.length})</h3>${rows}<a class="btn-sm" href="${esc(googleRouteUrl(stops))}" target="_blank" rel="noopener">Open full route in Google Maps</a> <button class="btn-sm" data-action="route-best">Best order</button> <button class="btn-sm" data-action="route-clear">Clear route</button>${stops.length>10?'<p class="directory-warning">Google Maps takes 10 stops, so only the first 10 are sent. Run the rest as a second trip.</p>':''}</div>`;
   }
   function requireOwner(){if(!isOwner(auth.currentUser))throw Error('Sign in with the authorized account.');}
   function reset(){session++;unsub.forEach(fn=>fn());unsub=[];accounts=[];links={};selected=null;staged=null;el('directory-view').replaceChildren();el('directory-file').value='';el('directory-import').disabled=true;el('directory-import-summary').textContent='';el('directory-import-status').textContent='';el('directory-status').textContent='Sign in to load customers.';}
@@ -42,6 +84,7 @@ export function createDirectory({db,auth,isOwner,getEntries,entryHTML,editEntry,
   root.addEventListener('click',async event=>{const target=event.target.closest('button');if(!target)return;
     const rid=target.dataset.radd||target.dataset.rremove||target.dataset.rup||target.dataset.rdown;
     if(rid){const i=route.indexOf(rid);if(target.dataset.radd){if(i<0)route.push(rid);else route.splice(i,1);}else if(target.dataset.rremove&&i>=0)route.splice(i,1);else if(target.dataset.rup&&i>0)[route[i-1],route[i]]=[route[i],route[i-1]];else if(target.dataset.rdown&&i>=0&&i<route.length-1)[route[i+1],route[i]]=[route[i],route[i+1]];saveRoute();render();return;}
+    if(target.dataset.action==='route-best'){bestOrder();return;}
     if(target.dataset.action==='route-clear'){route=[];saveRoute();render();return;}
     if(target.dataset.rlog){const acct=accounts.find(x=>x.id===target.dataset.rlog);if(acct)startActivity(acct);return;}
     if(target.dataset.account){selected=target.dataset.account;section='overview';render();return;}
