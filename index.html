@@ -49,6 +49,7 @@ label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.5px;dis
 input,select,textarea{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);padding:11px 12px;border-radius:10px;font-size:14px;outline:none;-webkit-appearance:none;appearance:none;}
 input:focus,select:focus,textarea:focus{border-color:var(--amber);}
 textarea{resize:none;line-height:1.5;height:72px;}
+#f-notes{min-height:240px;overflow:hidden;}
 select option{background:#1a1a1a;}
 
 /* CHIPS */
@@ -265,7 +266,7 @@ select option{background:#1a1a1a;}
     <div class="chip" data-val="COLD">⚪ COLD</div>
   </div>
 
-  <div class="form-row">
+  <div class="form-row" style="display:none">
     <div>
       <label>Stage / Objective</label>
       <select id="f-stage">
@@ -309,8 +310,8 @@ select option{background:#1a1a1a;}
     </div>
   </div>
 
-  <div class="section-lbl">Material Discussed</div>
-  <div class="form-group">
+  <div class="section-lbl" style="display:none">Material Discussed</div>
+  <div class="form-group" style="display:none">
     <input list="mat-list" id="f-material" placeholder="e.g. Super White, Calacatta Sponda…" autocomplete="off">
     <datalist id="mat-list">
       <option value="Super White">
@@ -343,7 +344,7 @@ select option{background:#1a1a1a;}
     <input type="date" id="f-followup">
   </div>
 
-  <div class="toggle-row">
+  <div class="toggle-row" style="display:none">
     <div>
       <div class="toggle-lbl">Win-Back Account</div>
       <div class="toggle-sub">Roma Marble, RS Marble, Art Granite, Global Stone, etc.</div>
@@ -483,6 +484,8 @@ select option{background:#1a1a1a;}
 <div id="toast"></div>
 
 <script type="module">
+function growNotes(){const t=document.getElementById('f-notes');if(!t)return;t.style.height='auto';t.style.height=Math.max(240,t.scrollHeight+2)+'px';}
+document.getElementById('f-notes').addEventListener('input',growNotes);
 import { createDirectory } from './directory.mjs?v=20261125b';
 import { DIRECTORY_COLLECTIONS } from './directory-model.mjs?v=20261125b';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
@@ -691,6 +694,7 @@ function clearForm(){
   activityAccountId=null;
   document.getElementById('f-account').readOnly=false;
   ['f-account','f-contact','f-material','f-followup','f-notes'].forEach(id => document.getElementById(id).value = '');
+  growNotes();
   ['f-stage','f-route'].forEach(id => document.getElementById(id).value = '');
   document.querySelectorAll('#chips-act .chip, #chips-status .chip').forEach(c => c.className = 'chip');
   document.getElementById('toggle-winback').classList.remove('on');
@@ -723,6 +727,7 @@ window.editEntry = (id) => {
   document.getElementById('f-material').value = e.material || '';
   document.getElementById('f-followup').value = e.followupDate || '';
   document.getElementById('f-notes').value = e.notes || '';
+  growNotes();
   document.getElementById('f-stage').value = e.stage || '';
   document.getElementById('f-route').value = e.route || '';
   if(e.winback) document.getElementById('toggle-winback').classList.add('on');
