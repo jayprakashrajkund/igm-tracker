@@ -39,3 +39,8 @@ export function googleRouteUrl(stops){
   return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(placeQuery(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(placeQuery).join('|')):'');
 }
 export function appleStopUrl(account){return 'https://maps.apple.com/?dirflg=d&daddr='+encodeURIComponent(placeQuery(account));}
+
+// OSRM trip response: waypoints[i].waypoint_index is input point i's position in the trip.
+export function orderFromTrip(waypoints){
+  return waypoints.map((w,i)=>({i,pos:w.waypoint_index})).sort((a,b)=>a.pos-b.pos).map(x=>x.i);
+}
