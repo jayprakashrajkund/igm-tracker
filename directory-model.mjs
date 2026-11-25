@@ -44,3 +44,24 @@ export function appleStopUrl(account){return 'https://maps.apple.com/?dirflg=d&d
 export function orderFromTrip(waypoints){
   return waypoints.map((w,i)=>({i,pos:w.waypoint_index})).sort((a,b)=>a.pos-b.pos).map(x=>x.i);
 }
+
+export function validateAddressUpdate(data){
+  if(data?.format!=='igm-address-update-v1'||!/^[a-f0-9]{64}$/.test(data.sourceSHA256||'')||!Array.isArray(data.addresses)||!data.addresses.length||data.addresses.length>400)throw Error('Choose a prepared IGM address update file.');
+  const ids=new Set();
+  for(const r of data.addresses){
+    if(!/^A\d{3,}$/.test(r?.id||'')||ids.has(r.id))throw Error('Invalid or duplicate account ID.');
+    ids.add(r.id);
+    if(typeof r.address!=='string'||!r.address.trim()||r.address.length>200)throw Error(`Missing street address for ${r.id}.`);
+    if(!/^[A-Z]{2}$/.test(r.state||'')||typeof r.city!=='string'||!r.city.trim()||!/^\d{5}$/.test(r.zip||''))throw Error(`Incomplete city, state or zip for ${r.id}.`);
+  }
+  return {addresses:ids.size};
+}
+
+// Returns the new locations array, or null when the account already has a street address.
+export function applyAddressUpdate(account,row){
+  const locations=[...(account.locations||[])];
+  const first=locations[0]||{};
+  if(first.address&&String(first.address).trim())return null;
+  locations[0]={...first,kind:first.kind||'Main',address:row.address.trim(),city:row.city.trim(),state:row.state,zip:row.zip,addressEditedAt:Date.now(),addressSource:'google-places-reviewed'};
+  return locations;
+}
