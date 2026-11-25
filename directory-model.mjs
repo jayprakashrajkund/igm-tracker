@@ -26,3 +26,16 @@ export function validateDirectoryImport(data){
   if(new TextEncoder().encode(JSON.stringify(data)).length>6000000) throw Error('Import file is too large.');
   return {accounts:ids.size,salesLines,followups,history,total:Math.round(total*100)/100,repeated};
 }
+
+export function placeQuery(account){
+  const l=(account.locations||[])[0]||{};
+  if(l.address)return [l.address,l.city,l.state,l.zip].filter(Boolean).join(', ');
+  return [account.name,l.city||account.source?.['Roster city'],l.state||account.source?.['Roster state']].filter(Boolean).join(', ');
+}
+export function googleRouteUrl(stops){
+  const use=stops.slice(0,10);
+  if(!use.length)return '';
+  const dest=use[use.length-1],way=use.slice(0,-1);
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+encodeURIComponent(placeQuery(dest))+(way.length?'&waypoints='+encodeURIComponent(way.map(placeQuery).join('|')):'');
+}
+export function appleStopUrl(account){return 'https://maps.apple.com/?dirflg=d&daddr='+encodeURIComponent(placeQuery(account));}
